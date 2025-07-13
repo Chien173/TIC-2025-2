@@ -1,15 +1,22 @@
-import React, { useState, useEffect } from 'react'
-import { Link } from 'react-router-dom'
-import SchemaAudit from './SchemaAudit'
-import WordPressIntegration from './WordPressIntegration'
-import { BarChart3, Globe, Zap, Users, FileText, ArrowRight } from 'lucide-react'
-import { schemaAuditService, wordpressService } from '../../lib/database'
+import React, { useState, useEffect } from "react";
+import { Link } from "react-router-dom";
+import SchemaAudit from "./SchemaAudit";
+import WordPressIntegration from "./WordPressIntegration";
+import {
+  BarChart3,
+  Globe,
+  Zap,
+  Users,
+  FileText,
+  ArrowRight,
+} from "lucide-react";
+import { schemaAuditService, wordpressService } from "../../lib/database";
 
 interface DashboardStats {
-  totalAudits: number
-  connectedSites: number
-  aiSuggestions: number
-  avgScore: number
+  totalAudits: number;
+  connectedSites: number;
+  aiSuggestions: number;
+  avgScore: number;
 }
 
 export const Dashboard: React.FC = () => {
@@ -17,58 +24,71 @@ export const Dashboard: React.FC = () => {
     totalAudits: 0,
     connectedSites: 0,
     aiSuggestions: 0,
-    avgScore: 0
-  })
-  const [loading, setLoading] = useState(true)
+    avgScore: 0,
+  });
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    loadDashboardStats()
-  }, [])
+    loadDashboardStats();
+  }, []);
 
   const loadDashboardStats = async () => {
     try {
-      setLoading(true)
-      
+      setLoading(true);
+
       // Load audit stats
-      const auditStats = await schemaAuditService.getStats()
-      
+      const auditStats = await schemaAuditService.getStats();
+
       // Load connected sites count
-      const connectedSites = await wordpressService.getConnectedCount()
-      
+      const connectedSites = await wordpressService.getConnectedCount();
+
       // Load all audits to count AI suggestions
-      const allAudits = await schemaAuditService.getAll()
-      const totalSuggestions = allAudits.reduce((sum, audit) => sum + audit.suggestions.length, 0)
-      
+      const allAudits = await schemaAuditService.getAll();
+      const totalSuggestions = allAudits.reduce(
+        (sum, audit) => sum + audit.suggestions.length,
+        0
+      );
+
       setStats({
         totalAudits: auditStats.totalAudits,
         connectedSites,
         aiSuggestions: totalSuggestions,
-        avgScore: auditStats.avgScore
-      })
+        avgScore: auditStats.avgScore,
+      });
     } catch (error) {
-      console.error('Error loading dashboard stats:', error)
+      console.error("Error loading dashboard stats:", error);
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   // Refresh stats when audits or integrations are updated
   const refreshStats = () => {
-    loadDashboardStats()
-  }
+    loadDashboardStats();
+  };
 
   return (
     <div className="space-y-8">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900 mb-2">SEO Audit Dashboard</h1>
-        <p className="text-gray-600">Analyze and optimize your website's structured data for better search engine visibility</p>
+        <h1 className="text-2xl font-bold text-gray-900 mb-2">
+          SEO Audit Dashboard
+        </h1>
+        <p className="text-gray-600">
+          Analyze and optimize your website's structured data for better search
+          engine visibility
+        </p>
       </div>
 
       <div className="bg-gradient-to-r from-blue-600 to-purple-600 rounded-xl p-6 text-white mb-8">
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-xl font-bold mb-2">WordPress Post Schema Audit</h2>
-            <p className="text-blue-100 mb-4">Analyze individual WordPress posts for schema optimization opportunities</p>
+            <h2 className="text-xl font-bold mb-2">
+              WordPress Post Schema Audit
+            </h2>
+            <p className="text-blue-100 mb-4">
+              Analyze individual WordPress posts for schema optimization
+              opportunities
+            </p>
             <Link
               to="/wordpress-audit"
               className="inline-flex items-center px-4 py-2 bg-white text-blue-600 rounded-lg hover:bg-blue-50 font-medium transition-colors"
@@ -90,7 +110,7 @@ export const Dashboard: React.FC = () => {
             <div>
               <p className="text-sm font-medium text-gray-600">Total Audits</p>
               <p className="text-2xl font-bold text-gray-900">
-                {loading ? '...' : stats.totalAudits}
+                {loading ? "..." : stats.totalAudits}
               </p>
             </div>
             <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
@@ -102,9 +122,11 @@ export const Dashboard: React.FC = () => {
         <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-gray-600">Connected Sites</p>
+              <p className="text-sm font-medium text-gray-600">
+                Connected Sites
+              </p>
               <p className="text-2xl font-bold text-gray-900">
-                {loading ? '...' : stats.connectedSites}
+                {loading ? "..." : stats.connectedSites}
               </p>
             </div>
             <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
@@ -116,9 +138,11 @@ export const Dashboard: React.FC = () => {
         <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-gray-600">AI Suggestions</p>
+              <p className="text-sm font-medium text-gray-600">
+                AI Suggestions
+              </p>
               <p className="text-2xl font-bold text-gray-900">
-                {loading ? '...' : stats.aiSuggestions}
+                {loading ? "..." : stats.aiSuggestions}
               </p>
             </div>
             <div className="w-12 h-12 bg-yellow-100 rounded-lg flex items-center justify-center">
@@ -132,7 +156,7 @@ export const Dashboard: React.FC = () => {
             <div>
               <p className="text-sm font-medium text-gray-600">Avg. Score</p>
               <p className="text-2xl font-bold text-gray-900">
-                {loading ? '...' : stats.avgScore}
+                {loading ? "..." : stats.avgScore}
               </p>
             </div>
             <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center">
@@ -147,5 +171,5 @@ export const Dashboard: React.FC = () => {
         <WordPressIntegration />
       </div>
     </div>
-  )
-}
+  );
+};

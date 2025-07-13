@@ -1,13 +1,21 @@
-import React from 'react'
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
-import { AuthProvider, useAuth } from './contexts/AuthContext'
-import { LoginForm } from './components/Auth/LoginForm'
-import { Layout } from './components/Layout'
-import { Dashboard } from './components/Dashboard/Dashboard'
-import { WordPressPostAudit } from './components/WordPressPostAudit/WordPressPostAudit'
+import React from "react";
+import {
+  BrowserRouter as Router,
+  Routes,
+  Route,
+  Navigate,
+} from "react-router-dom";
+import { AuthProvider, useAuth } from "./contexts/AuthContext";
+import { LoginForm } from "./components/Auth/LoginForm";
+import { Layout } from "./components/Layout";
+import { Dashboard } from "./components/Dashboard/Dashboard";
+import { WordPressPostAudit } from "./components/WordPressPostAudit/WordPressPostAudit";
+import { TrackingProvider } from "./contexts/TrackingProvider";
 // edit
-const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { user, loading } = useAuth()
+const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({
+  children,
+}) => {
+  const { user, loading } = useAuth();
 
   if (loading) {
     return (
@@ -17,20 +25,20 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
           <p className="text-gray-600">Loading...</p>
         </div>
       </div>
-    )
+    );
   }
 
-  return user ? <>{children}</> : <Navigate to="/login" />
-}
+  return user ? <>{children}</> : <Navigate to="/login" />;
+};
 
 const AppRoutes: React.FC = () => {
-  const { user } = useAuth()
+  const { user } = useAuth();
 
   return (
     <Routes>
-      <Route 
-        path="/login" 
-        element={user ? <Navigate to="/" /> : <LoginForm />} 
+      <Route
+        path="/login"
+        element={user ? <Navigate to="/" /> : <LoginForm />}
       />
       <Route
         path="/"
@@ -53,19 +61,21 @@ const AppRoutes: React.FC = () => {
         }
       />
     </Routes>
-  )
-}
+  );
+};
 
 function App() {
   return (
     <AuthProvider>
-      <Router>
-        <div className="font-sans">
-          <AppRoutes />
-        </div>
-      </Router>
+      <TrackingProvider>
+        <Router>
+          <div className="font-sans">
+            <AppRoutes />
+          </div>
+        </Router>
+      </TrackingProvider>
     </AuthProvider>
-  )
+  );
 }
 
-export default App
+export default App;
