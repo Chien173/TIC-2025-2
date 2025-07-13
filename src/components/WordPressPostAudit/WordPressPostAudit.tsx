@@ -14,10 +14,7 @@ import {
   Loader2,
   FileText,
   BarChart3,
-  Upload,
-  Copy,
-  Check,
-  Zap
+  Upload
 } from "lucide-react";
 import { useLanguage } from "../../contexts/LanguageContext";
 import { useTracking } from "../../hooks/useTracking";
@@ -52,12 +49,9 @@ export const WordPressPostAudit: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [publishLoading, setPublishLoading] = useState(false);
   const [loadingPosts, setLoadingPosts] = useState(false);
-  const [generatingSchema, setGeneratingSchema] = useState(false);
-  const [suggestedSchema, setSuggestedSchema] = useState<string | null>(null);
-  const [copiedSchema, setCopiedSchema] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { t } = useLanguage();
-  const { trackPostAudit, trackPublishSchema, track } = useTracking();
+  const { trackPostAudit, trackPublishSchema } = useTracking();
 
   useEffect(() => {
     loadIntegrations();
@@ -792,126 +786,6 @@ export const WordPressPostAudit: React.FC = () => {
                         </div>
                       </div>
                     )}
-                  </div>
-
-                  {/* AI Schema Suggestions */}
-                  <div className="bg-white border border-gray-200 rounded-lg">
-                    <div className="bg-gradient-to-r from-purple-50 to-blue-50 px-6 py-4 border-b border-gray-200">
-                      <div className="flex items-center justify-between">
-                        <h4 className="text-lg font-semibold text-gray-900 flex items-center">
-                          <Zap className="w-5 h-5 text-purple-600 mr-2" />
-                          AI-Generated Schema Suggestions
-                        </h4>
-                        <button
-                          onClick={generateAISchemaSupport}
-                          disabled={generatingSchema}
-                          className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2 transition-colors"
-                        >
-                          {generatingSchema ? (
-                            <Loader2 className="w-4 h-4 animate-spin" />
-                          ) : (
-                            <Zap className="w-4 h-4" />
-                          )}
-                          <span>
-                            {generatingSchema ? 'Generating...' : 'Generate AI Schema'}
-                          </span>
-                        </button>
-                      </div>
-                    </div>
-
-                    <div className="p-6">
-                      {!suggestedSchema && !generatingSchema && (
-                        <div className="text-center py-8">
-                          <div className="w-16 h-16 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                            <Zap className="w-8 h-8 text-purple-600" />
-                          </div>
-                          <h5 className="text-lg font-medium text-gray-900 mb-2">
-                            AI Schema Generator
-                          </h5>
-                          <p className="text-gray-600 mb-4">
-                            Generate optimized JSON-LD schema markup based on your audit results and post content
-                          </p>
-                          <button
-                            onClick={generateAISchemaSupport}
-                            className="px-6 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 flex items-center space-x-2 mx-auto transition-colors"
-                          >
-                            <Zap className="w-5 h-5" />
-                            <span>Generate Schema</span>
-                          </button>
-                        </div>
-                      )}
-
-                      {generatingSchema && (
-                        <div className="text-center py-8">
-                          <Loader2 className="w-8 h-8 animate-spin text-purple-600 mx-auto mb-4" />
-                          <h5 className="text-lg font-medium text-gray-900 mb-2">
-                            Generating AI Schema...
-                          </h5>
-                          <p className="text-gray-600">
-                            Our AI is analyzing your content and creating optimized schema markup
-                          </p>
-                        </div>
-                      )}
-
-                      {suggestedSchema && (
-                        <div className="space-y-4">
-                          <div className="flex items-center justify-between">
-                            <h5 className="font-semibold text-gray-900">
-                              Optimized JSON-LD Schema
-                            </h5>
-                            <button
-                              onClick={copySchemaToClipboard}
-                              className={`px-4 py-2 rounded-lg flex items-center space-x-2 transition-colors ${
-                                copiedSchema
-                                  ? 'bg-green-100 text-green-700 border border-green-200'
-                                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200 border border-gray-200'
-                              }`}
-                            >
-                              {copiedSchema ? (
-                                <Check className="w-4 h-4" />
-                              ) : (
-                                <Copy className="w-4 h-4" />
-                              )}
-                              <span>
-                                {copiedSchema ? 'Copied!' : 'Copy Schema'}
-                              </span>
-                            </button>
-                          </div>
-
-                          <div className="bg-gray-900 rounded-lg p-4 overflow-x-auto">
-                            <pre className="text-sm text-gray-100 whitespace-pre-wrap">
-                              <code>{suggestedSchema}</code>
-                            </pre>
-                          </div>
-
-                          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                            <h6 className="font-medium text-blue-900 mb-2">
-                              How to use this schema:
-                            </h6>
-                            <ul className="text-sm text-blue-800 space-y-1">
-                              <li>• Copy the schema code above</li>
-                              <li>• Paste it into your WordPress post's HTML editor</li>
-                              <li>• Wrap it in &lt;script type="application/ld+json"&gt; tags</li>
-                              <li>• Or use the "Publish Schema" button to automatically add it</li>
-                            </ul>
-                          </div>
-
-                          <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-                            <h6 className="font-medium text-green-900 mb-2">
-                              This schema addresses:
-                            </h6>
-                            <div className="text-sm text-green-800 space-y-1">
-                              {auditResult.issues.map((issue, index) => (
-                                <div key={index} className="flex items-center">
-                                  <CheckCircle className="w-4 h-4 text-green-600 mr-2 flex-shrink-0" />
-                                  <span>{issue}</span>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        </div>
-                      )}
-                    </div>
                   </div>
                 </div>
               )}
