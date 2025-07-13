@@ -257,6 +257,7 @@ export const WordPressPostAudit: React.FC = () => {
       }
       
       // Call the custom API endpoint with correct website_id
+      console.log(selectedIntegration);
       const websiteId = selectedIntegration.website_id || selectedIntegration.website?.id
       const response = await fetch(`https://wordpress.dev.teko.vn/wp-json/custom-schema-connector/v1/schema/${websiteId}`, {
         method: 'POST',
