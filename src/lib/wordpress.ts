@@ -56,7 +56,7 @@ const wordpressApi = {
       method: "GET",
     });
 
-    console.log(response);
+    console.log(response.json());
 
     if (!response.ok) {
       throw new Error(`Failed to fetch posts: ${response.status} - ${response.statusText}`);
