@@ -1,5 +1,7 @@
 import React from 'react'
 import { useAuth } from '../contexts/AuthContext'
+import { useLanguage } from '../contexts/LanguageContext'
+import { LanguageSelector } from './LanguageSelector'
 import { LogOut, Search, Zap } from 'lucide-react'
 
 interface LayoutProps {
@@ -8,6 +10,7 @@ interface LayoutProps {
 
 export const Layout: React.FC<LayoutProps> = ({ children }) => {
   const { user, signOut } = useAuth()
+  const { t } = useLanguage()
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -19,21 +22,22 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
                 <Search className="w-5 h-5 text-white" />
               </div>
               <div>
-                <h1 className="text-xl font-bold text-gray-900">SEO Audit Pro</h1>
-                <p className="text-sm text-gray-500">Website Schema Analysis</p>
+                <h1 className="text-xl font-bold text-gray-900">{t('header.title')}</h1>
+                <p className="text-sm text-gray-500">{t('header.subtitle')}</p>
               </div>
             </div>
             
             <div className="flex items-center space-x-4">
+              <LanguageSelector />
               <div className="text-sm text-gray-600">
-                Welcome, {user?.email}
+                {t('header.welcome')}, {user?.email}
               </div>
               <button
                 onClick={signOut}
                 className="flex items-center space-x-2 px-3 py-2 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-md transition-colors"
               >
                 <LogOut className="w-4 h-4" />
-                <span>Sign Out</span>
+                <span>{t('header.signOut')}</span>
               </button>
             </div>
           </div>

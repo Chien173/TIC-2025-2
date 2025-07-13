@@ -31,6 +31,9 @@ export interface SchemaAudit {
   website?: Website
 }
 
+// Add interface for better type safety
+export interface ISchemaAudit extends SchemaAudit {}
+
 export interface WordPressIntegration {
   id: string
   website_id?: string
@@ -223,12 +226,19 @@ export const schemaAuditService = {
 
     if (error) throw error
 
-    const totalAudits = data.length
-    const avgScore = data.length > 0 
-      ? Math.round(data.reduce((sum, audit) => sum + audit.score, 0) / data.length)
-      : 0
+    // Get total audits from both schema_audits and post_audits
+    const { data: postAudits, error: postError } = await supabase
+      .from('post_audits')
+      .select('score')
+      .is('deleted_at', null)
 
-    return { totalAudits, avgScore }
+    if (postError) throw postError
+
+    const totalSchemaAudits = data.length
+    const totalPostAudits = postAudits.length
+    const totalAudits = totalSchemaAudits + totalPostAudits
+
+    return { totalAudits }
   }
 }
 
@@ -307,6 +317,17 @@ export const wordpressService = {
       .from('wordpress_integrations')
       .select('id')
       .eq('connection_status', 'connected')
+      .is('deleted_at', null)
+
+    if (error) throw error
+    return data.length
+  },
+
+  async getPublishedCount() {
+    const { data, error } = await supabase
+      .from('schema_publications')
+      .select('id')
+      .eq('publication_status', 'published')
       .is('deleted_at', null)
 
     if (error) throw error
