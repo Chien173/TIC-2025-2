@@ -56,11 +56,13 @@ const wordpressApi = {
       method: "GET",
     });
 
-    console.log(response.json());
+    console.log(response);
 
     if (!response.ok) {
       throw new Error(`Failed to fetch posts: ${response.status} - ${response.statusText}`);
     }
+
+    console.log(response.json());
 
     return await response.json();
   },
