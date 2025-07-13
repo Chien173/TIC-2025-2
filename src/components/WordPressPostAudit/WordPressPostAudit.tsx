@@ -11,10 +11,14 @@ import {
   User, 
   Tag,
   ArrowLeft,
-  Loader2
+  Loader2,
+  FileText,
+  BarChart3
 } from "lucide-react";
 import { useLanguage } from "../../contexts/LanguageContext";
 import { useTracking } from "../../hooks/useTracking";
+import { wordpressService, postAuditService, WordPressIntegration, PostAudit } from "../../lib/database";
+import wordpressApi, { WordPressPost } from "../../lib/wordpress";
 
 interface AuditResult {
   url: string;
@@ -35,82 +39,195 @@ interface AuditResult {
 }
 
 export const WordPressPostAudit: React.FC = () => {
-  const [url, setUrl] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
+  const [selectedIntegration, setSelectedIntegration] = useState<WordPressIntegration | null>(null);
+  const [integrations, setIntegrations] = useState<WordPressIntegration[]>([]);
+  const [posts, setPosts] = useState<WordPressPost[]>([]);
+  const [selectedPost, setSelectedPost] = useState<WordPressPost | null>(null);
   const [auditResult, setAuditResult] = useState<AuditResult | null>(null);
+  const [postAudits, setPostAudits] = useState<PostAudit[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [loadingPosts, setLoadingPosts] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { t } = useLanguage();
-  const { track } = useTracking();
+  const { trackPostAudit } = useTracking();
 
-  const handleAudit = async () => {
-    if (!url.trim()) return;
+  useEffect(() => {
+    loadIntegrations();
+  }, []);
 
+  useEffect(() => {
+    if (selectedIntegration) {
+      loadPosts();
+      loadPostAudits();
+    }
+  }, [selectedIntegration]);
+
+  const loadIntegrations = async () => {
+    try {
+      const data = await wordpressService.getAll();
+      const connectedIntegrations = data.filter(integration => 
+        integration.connection_status === 'connected'
+      );
+      setIntegrations(connectedIntegrations);
+      
+      if (connectedIntegrations.length > 0) {
+        setSelectedIntegration(connectedIntegrations[0]);
+      }
+    } catch (error) {
+      console.error('Error loading integrations:', error);
+      setError('Failed to load WordPress integrations');
+    }
+  };
+
+  const loadPosts = async () => {
+    if (!selectedIntegration) return;
+    
+    setLoadingPosts(true);
+    setError(null);
+    
+    try {
+      const websiteId = selectedIntegration.website_id || '';
+      const postsData = await wordpressApi.getPosts(websiteId);
+      setPosts(postsData);
+    } catch (error: any) {
+      console.error('Error loading posts:', error);
+      setError(error.message || 'Failed to load WordPress posts');
+      setPosts([]);
+    } finally {
+      setLoadingPosts(false);
+    }
+  };
+
+  const loadPostAudits = async () => {
+    if (!selectedIntegration) return;
+    
+    try {
+      const audits = await postAuditService.getByIntegrationId(selectedIntegration.id);
+      setPostAudits(audits);
+    } catch (error) {
+      console.error('Error loading post audits:', error);
+    }
+  };
+
+  const handlePostAudit = async (post: WordPressPost) => {
+    if (!selectedIntegration) return;
+
+    setSelectedPost(post);
     setIsLoading(true);
     setError(null);
     setAuditResult(null);
 
     try {
       // Track the audit action
-      track('post_audit_clicked', {
-        url: url.trim(),
-        domain: new URL(url.trim()).hostname
-      });
+      trackPostAudit(post.id.toString(), post.title.rendered);
 
-      // Simulate API call - replace with actual implementation
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
-      // Mock result - replace with actual API response
-      const mockResult: AuditResult = {
-        url: url.trim(),
-        title: "Sample WordPress Post Title",
-        description: "This is a sample description of the WordPress post being audited.",
-        author: "John Doe",
-        publishDate: "2024-01-15",
-        categories: ["Technology", "Web Development"],
-        tags: ["SEO", "WordPress", "Schema"],
-        schemas: [
-          {
-            type: "Article",
-            status: 'valid',
-            properties: {
-              headline: "Sample WordPress Post Title",
-              author: "John Doe",
-              datePublished: "2024-01-15",
-              description: "This is a sample description"
+      // Check if audit already exists
+      const existingAudit = await postAuditService.getByPostId(
+        selectedIntegration.id, 
+        post.id.toString()
+      );
+
+      if (existingAudit) {
+        // Use existing audit result
+        const mockResult: AuditResult = {
+          url: post.link,
+          title: post.title.rendered,
+          description: post.excerpt.rendered.replace(/<[^>]*>/g, '').substring(0, 200),
+          author: `Author ${post.author}`,
+          publishDate: new Date(post.date).toLocaleDateString(),
+          categories: ['Technology', 'Web Development'],
+          tags: ['SEO', 'WordPress', 'Schema'],
+          schemas: existingAudit.schemas_found,
+          issues: existingAudit.issues,
+          seoScore: existingAudit.score,
+          recommendations: existingAudit.suggestions
+        };
+        setAuditResult(mockResult);
+      } else {
+        // Simulate API call for new audit
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        
+        // Mock result
+        const mockResult: AuditResult = {
+          url: post.link,
+          title: post.title.rendered,
+          description: post.excerpt.rendered.replace(/<[^>]*>/g, '').substring(0, 200),
+          author: `Author ${post.author}`,
+          publishDate: new Date(post.date).toLocaleDateString(),
+          categories: ['Technology', 'Web Development'],
+          tags: ['SEO', 'WordPress', 'Schema'],
+          schemas: [
+            {
+              type: "Article",
+              status: 'valid',
+              properties: {
+                headline: post.title.rendered,
+                author: `Author ${post.author}`,
+                datePublished: post.date,
+                description: post.excerpt.rendered.replace(/<[^>]*>/g, '').substring(0, 100)
+              }
+            },
+            {
+              type: "BreadcrumbList",
+              status: 'warning',
+              properties: {
+                itemListElement: []
+              }
             }
-          },
-          {
-            type: "BreadcrumbList",
-            status: 'warning',
-            properties: {
-              itemListElement: []
+          ],
+          issues: [
+            "Missing required property: mainEntityOfPage",
+            "Missing required property: image",
+            "Missing author schema information"
+          ],
+          seoScore: Math.floor(Math.random() * 40) + 60,
+          recommendations: [
+            "Add featured image to improve schema markup",
+            "Include mainEntityOfPage property in Article schema",
+            "Consider adding FAQ schema if applicable",
+            "Add Person schema for author information"
+          ]
+        };
+
+        setAuditResult(mockResult);
+
+        // Save audit result
+        await postAuditService.create({
+          website_id: selectedIntegration.website_id,
+          wordpress_integration_id: selectedIntegration.id,
+          post_id: post.id.toString(),
+          post_title: post.title.rendered,
+          post_url: post.link,
+          schemas_found: mockResult.schemas,
+          issues: mockResult.issues,
+          suggestions: mockResult.recommendations,
+          score: mockResult.seoScore,
+          audit_data: {
+            analyzed_at: new Date().toISOString(),
+            post_data: {
+              excerpt: post.excerpt.rendered,
+              content_length: post.content.rendered.length,
+              status: post.status
             }
           }
-        ],
-        issues: [
-          "Missing required property: mainEntityOfPage",
-          "Missing required property: image"
-        ],
-        seoScore: 75,
-        recommendations: [
-          "Add featured image to improve schema markup",
-          "Include mainEntityOfPage property in Article schema",
-          "Consider adding FAQ schema if applicable"
-        ]
-      };
+        });
 
-      setAuditResult(mockResult);
-    } catch (err) {
-      setError("Failed to audit the post. Please check the URL and try again.");
+        await loadPostAudits();
+      }
+    } catch (err: any) {
+      setError(err.message || "Failed to audit the post. Please try again.");
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') {
-      handleAudit();
-    }
+  const getPostAuditStatus = (postId: number) => {
+    const audit = postAudits.find(a => a.post_id === postId.toString());
+    return audit ? {
+      score: audit.score,
+      auditedAt: audit.created_at,
+      issuesCount: audit.issues.length
+    } : null;
   };
 
   return (
@@ -119,11 +236,11 @@ export const WordPressPostAudit: React.FC = () => {
       <div className="flex items-center justify-between">
         <div className="flex items-center space-x-4">
           <Link 
-            to="/dashboard" 
+            to="/" 
             className="flex items-center text-gray-600 hover:text-gray-900 transition-colors"
           >
             <ArrowLeft className="w-5 h-5 mr-2" />
-            {t('backToDashboard')}
+            {t('common.back')}
           </Link>
         </div>
       </div>
@@ -131,319 +248,449 @@ export const WordPressPostAudit: React.FC = () => {
       <div className="bg-white rounded-lg shadow-sm border border-gray-200">
         <div className="p-6 border-b border-gray-200">
           <h1 className="text-2xl font-bold text-gray-900 mb-2">
-            {t('wordpressPostAudit')}
+            {t('dashboard.wpAudit.title')}
           </h1>
           <p className="text-gray-600">
-            {t('analyzeWordPressPost')}
+            {t('dashboard.wpAudit.description')}
           </p>
         </div>
 
         <div className="p-6">
-          {/* URL Input */}
-          <div className="mb-6">
-            <label htmlFor="post-url" className="block text-sm font-medium text-gray-700 mb-2">
-              {t('postUrl')}
-            </label>
-            <div className="flex space-x-3">
-              <div className="flex-1 relative">
-                <Globe className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-                <input
-                  id="post-url"
-                  type="url"
-                  value={url}
-                  onChange={(e) => setUrl(e.target.value)}
-                  onKeyPress={handleKeyPress}
-                  placeholder="https://example.com/sample-post"
-                  className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  disabled={isLoading}
-                />
-              </div>
-              <button
-                onClick={handleAudit}
-                disabled={!url.trim() || isLoading}
-                className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2 transition-colors"
-              >
-                {isLoading ? (
-                  <Loader2 className="w-5 h-5 animate-spin" />
-                ) : (
-                  <Search className="w-5 h-5" />
-                )}
-                <span>{isLoading ? t('analyzing') : t('analyze')}</span>
-              </button>
-            </div>
-          </div>
-
-          {/* Error Message */}
-          {error && (
-            <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
-              <div className="flex items-center">
-                <XCircle className="w-5 h-5 text-red-500 mr-2" />
-                <p className="text-red-700">{error}</p>
-              </div>
-            </div>
-          )}
-
-          {/* Loading State */}
-          {isLoading && (
+          {/* Integration Selection */}
+          {integrations.length === 0 ? (
             <div className="text-center py-12">
-              <Loader2 className="w-8 h-8 animate-spin text-blue-600 mx-auto mb-4" />
-              <p className="text-gray-600">{t('analyzingPost')}</p>
-            </div>
-          )}
-
-          {/* Audit Results */}
-          {auditResult && (
-            <div className="space-y-6">
-              {/* Post Information */}
-              <div className="bg-gray-50 rounded-lg p-6">
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">
-                  {t('postInformation')}
-                </h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <h4 className="font-medium text-gray-900 mb-2">{t('title')}</h4>
-                    <p className="text-gray-700">{auditResult.title}</p>
-                  </div>
-                  <div>
-                    <h4 className="font-medium text-gray-900 mb-2">{t('author')}</h4>
-                    <div className="flex items-center">
-                      <User className="w-4 h-4 text-gray-500 mr-2" />
-                      <span className="text-gray-700">{auditResult.author}</span>
-                    </div>
-                  </div>
-                  <div>
-                    <h4 className="font-medium text-gray-900 mb-2">{t('publishDate')}</h4>
-                    <div className="flex items-center">
-                      <Calendar className="w-4 h-4 text-gray-500 mr-2" />
-                      <span className="text-gray-700">{auditResult.publishDate}</span>
-                    </div>
-                  </div>
-                  <div>
-                    <h4 className="font-medium text-gray-900 mb-2">{t('url')}</h4>
-                    <div className="flex items-center">
-                      <ExternalLink className="w-4 h-4 text-gray-500 mr-2" />
-                      <a 
-                        href={auditResult.url} 
-                        target="_blank" 
-                        rel="noopener noreferrer"
-                        className="text-blue-600 hover:text-blue-800 truncate"
-                      >
-                        {auditResult.url}
-                      </a>
-                    </div>
-                  </div>
-                </div>
-                
-                <div className="mt-4">
-                  <h4 className="font-medium text-gray-900 mb-2">{t('description')}</h4>
-                  <p className="text-gray-700">{auditResult.description}</p>
-                </div>
-
-                <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <h4 className="font-medium text-gray-900 mb-2">{t('categories')}</h4>
-                    <div className="flex flex-wrap gap-2">
-                      {auditResult.categories.map((category, index) => (
-                        <span 
-                          key={index}
-                          className="px-2 py-1 bg-blue-100 text-blue-800 text-sm rounded-md"
-                        >
-                          {category}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                  <div>
-                    <h4 className="font-medium text-gray-900 mb-2">{t('tags')}</h4>
-                    <div className="flex flex-wrap gap-2">
-                      {auditResult.tags.map((tag, index) => (
-                        <span 
-                          key={index}
-                          className="px-2 py-1 bg-gray-100 text-gray-800 text-sm rounded-md flex items-center"
-                        >
-                          <Tag className="w-3 h-3 mr-1" />
-                          {tag}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                </div>
+              <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <Globe className="w-8 h-8 text-gray-400" />
               </div>
-
-              {/* Schema Analysis Results */}
-              <div className="bg-white border border-gray-200 rounded-lg">
-                <div className="bg-gray-50 px-6 py-4 border-b border-gray-200">
-                  <h3 className="text-lg font-semibold text-gray-900">
-                    {t('schemaAnalysisResults')}
-                  </h3>
+              <h3 className="text-lg font-medium text-gray-900 mb-2">
+                No WordPress Sites Connected
+              </h3>
+              <p className="text-gray-600 mb-4">
+                Connect your WordPress site first to audit posts
+              </p>
+              <Link
+                to="/"
+                className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+              >
+                <Globe className="w-4 h-4 mr-2" />
+                Connect WordPress Site
+              </Link>
+            </div>
+          ) : (
+            <>
+              {/* Site Selector */}
+              {integrations.length > 1 && (
+                <div className="mb-6">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Select WordPress Site
+                  </label>
+                  <select
+                    value={selectedIntegration?.id || ''}
+                    onChange={(e) => {
+                      const integration = integrations.find(i => i.id === e.target.value);
+                      setSelectedIntegration(integration || null);
+                    }}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  >
+                    {integrations.map((integration) => (
+                      <option key={integration.id} value={integration.id}>
+                        {integration.domain} ({integration.username})
+                      </option>
+                    ))}
+                  </select>
                 </div>
+              )}
 
-                {/* Summary Stats */}
-                <div className="p-6 border-b border-gray-200">
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    <div className="text-center">
-                      <div className="text-2xl font-bold text-blue-600">
-                        {auditResult.schemas.length}
-                      </div>
-                      <div className="text-sm text-gray-600">{t('itemsDetected')}</div>
-                    </div>
-                    <div className="text-center">
-                      <div className="text-2xl font-bold text-red-600">
-                        {auditResult.issues.length}
-                      </div>
-                      <div className="text-sm text-gray-600">{t('errors')}</div>
-                    </div>
-                    <div className="text-center">
-                      <div className="text-2xl font-bold text-yellow-600">
-                        {auditResult.schemas.filter(s => s.status === 'warning').length}
-                      </div>
-                      <div className="text-sm text-gray-600">{t('warnings')}</div>
-                    </div>
-                    <div className="text-center">
-                      <div className="text-2xl font-bold text-green-600">
-                        {auditResult.seoScore}%
-                      </div>
-                      <div className="text-sm text-gray-600">{t('seoScore')}</div>
+              {/* Current Site Info */}
+              {selectedIntegration && (
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+                  <div className="flex items-center">
+                    <Globe className="w-5 h-5 text-blue-600 mr-2" />
+                    <div>
+                      <h3 className="font-medium text-blue-900">
+                        {selectedIntegration.domain}
+                      </h3>
+                      <p className="text-sm text-blue-700">
+                        Connected as: {selectedIntegration.username}
+                      </p>
                     </div>
                   </div>
                 </div>
+              )}
 
-                {/* Schema Items */}
-                {auditResult.schemas.length > 0 && (
-                  <div className="border border-gray-200 rounded-lg">
-                    <div className="bg-gray-50 px-4 py-3 border-b border-gray-200">
-                      <h4 className="font-semibold text-gray-900 flex items-center">
-                        <CheckCircle className="w-5 h-5 text-green-500 mr-2" />
-                        {t('detectedSchemas')} ({auditResult.schemas.length})
-                      </h4>
+              {/* Posts List */}
+              {loadingPosts ? (
+                <div className="text-center py-12">
+                  <Loader2 className="w-8 h-8 animate-spin text-blue-600 mx-auto mb-4" />
+                  <p className="text-gray-600">Loading WordPress posts...</p>
+                </div>
+              ) : error ? (
+                <div className="p-4 bg-red-50 border border-red-200 rounded-lg mb-6">
+                  <div className="flex items-center">
+                    <XCircle className="w-5 h-5 text-red-500 mr-2" />
+                    <p className="text-red-700">{error}</p>
+                  </div>
+                </div>
+              ) : posts.length === 0 ? (
+                <div className="text-center py-12">
+                  <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <FileText className="w-8 h-8 text-gray-400" />
+                  </div>
+                  <h3 className="text-lg font-medium text-gray-900 mb-2">
+                    No Posts Found
+                  </h3>
+                  <p className="text-gray-600">
+                    No published posts found in this WordPress site
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-6">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-lg font-semibold text-gray-900">
+                      WordPress Posts ({posts.length})
+                    </h3>
+                    <div className="text-sm text-gray-600">
+                      {postAudits.length} posts audited
                     </div>
-                    <div className="p-4">
-                      <div className="space-y-4">
-                        {auditResult.schemas.map((schema, index) => (
-                          <div
-                            key={index}
-                            className={`border rounded-lg p-4 ${
-                              schema.status === 'valid' 
-                                ? 'border-green-200 bg-green-50' 
-                                : schema.status === 'warning'
-                                ? 'border-yellow-200 bg-yellow-50'
-                                : 'border-red-200 bg-red-50'
-                            }`}
-                          >
-                            <div className="flex items-center justify-between mb-3">
-                              <div className="flex items-center">
-                                <span className="font-medium text-gray-900">
-                                  {schema.type}
-                                </span>
-                                <span className={`ml-2 px-2 py-1 text-xs font-medium rounded-full ${
-                                  schema.status === 'valid' 
-                                    ? 'bg-green-100 text-green-800' 
-                                    : schema.status === 'warning'
-                                    ? 'bg-yellow-100 text-yellow-800'
-                                    : 'bg-red-100 text-red-800'
-                                }`}>
-                                  {schema.status === 'valid' ? t('valid') : 
-                                   schema.status === 'warning' ? t('warning') : t('invalid')}
-                                </span>
+                  </div>
+
+                  <div className="grid gap-4">
+                    {posts.map((post) => {
+                      const auditStatus = getPostAuditStatus(post.id);
+                      return (
+                        <div
+                          key={post.id}
+                          className="border border-gray-200 rounded-lg p-4 hover:border-gray-300 transition-colors"
+                        >
+                          <div className="flex items-start justify-between">
+                            <div className="flex-1 min-w-0">
+                              <h4 className="text-lg font-medium text-gray-900 mb-2">
+                                {post.title.rendered}
+                              </h4>
+                              <div className="text-sm text-gray-600 mb-3">
+                                <div className="flex items-center space-x-4">
+                                  <div className="flex items-center">
+                                    <Calendar className="w-4 h-4 mr-1" />
+                                    {new Date(post.date).toLocaleDateString()}
+                                  </div>
+                                  <div className="flex items-center">
+                                    <User className="w-4 h-4 mr-1" />
+                                    Author {post.author}
+                                  </div>
+                                  <div className="flex items-center">
+                                    <ExternalLink className="w-4 h-4 mr-1" />
+                                    <a 
+                                      href={post.link} 
+                                      target="_blank" 
+                                      rel="noopener noreferrer"
+                                      className="text-blue-600 hover:text-blue-800 truncate max-w-xs"
+                                    >
+                                      View Post
+                                    </a>
+                                  </div>
+                                </div>
                               </div>
-                              {schema.status === 'valid' ? (
-                                <CheckCircle className="w-5 h-5 text-green-500" />
-                              ) : schema.status === 'warning' ? (
-                                <AlertTriangle className="w-5 h-5 text-yellow-500" />
-                              ) : (
-                                <XCircle className="w-5 h-5 text-red-500" />
+                              
+                              {post.excerpt.rendered && (
+                                <p className="text-sm text-gray-600 mb-3 line-clamp-2">
+                                  {post.excerpt.rendered.replace(/<[^>]*>/g, '').substring(0, 150)}...
+                                </p>
+                              )}
+
+                              {auditStatus && (
+                                <div className="flex items-center space-x-4 text-sm">
+                                  <div className="flex items-center">
+                                    <BarChart3 className="w-4 h-4 mr-1 text-green-600" />
+                                    <span className="text-green-600 font-medium">
+                                      Score: {auditStatus.score}%
+                                    </span>
+                                  </div>
+                                  <div className="flex items-center">
+                                    <AlertTriangle className="w-4 h-4 mr-1 text-yellow-600" />
+                                    <span className="text-yellow-600">
+                                      {auditStatus.issuesCount} issues
+                                    </span>
+                                  </div>
+                                  <div className="text-gray-500">
+                                    Audited: {new Date(auditStatus.auditedAt).toLocaleDateString()}
+                                  </div>
+                                </div>
                               )}
                             </div>
                             
-                            <div className="space-y-2">
-                              {Object.entries(schema.properties).map(([key, value]) => (
-                                <div key={key} className="flex">
-                                  <span className="font-medium text-gray-700 w-32 flex-shrink-0">
-                                    {key}:
+                            <div className="ml-4 flex-shrink-0">
+                              <button
+                                onClick={() => handlePostAudit(post)}
+                                disabled={isLoading}
+                                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2 transition-colors"
+                              >
+                                {isLoading && selectedPost?.id === post.id ? (
+                                  <Loader2 className="w-4 h-4 animate-spin" />
+                                ) : (
+                                  <Search className="w-4 h-4" />
+                                )}
+                                <span>
+                                  {auditStatus ? 'Re-audit' : 'Audit'}
+                                </span>
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Audit Results */}
+              {auditResult && selectedPost && (
+                <div className="mt-8 space-y-6">
+                  <div className="border-t border-gray-200 pt-6">
+                    <h3 className="text-xl font-bold text-gray-900 mb-4">
+                      Audit Results for: {selectedPost.title.rendered}
+                    </h3>
+                  </div>
+
+                  {/* Post Information */}
+                  <div className="bg-gray-50 rounded-lg p-6">
+                    <h4 className="text-lg font-semibold text-gray-900 mb-4">
+                      Post Information
+                    </h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <h5 className="font-medium text-gray-900 mb-2">Title</h5>
+                        <p className="text-gray-700">{auditResult.title}</p>
+                      </div>
+                      <div>
+                        <h5 className="font-medium text-gray-900 mb-2">Author</h5>
+                        <div className="flex items-center">
+                          <User className="w-4 h-4 text-gray-500 mr-2" />
+                          <span className="text-gray-700">{auditResult.author}</span>
+                        </div>
+                      </div>
+                      <div>
+                        <h5 className="font-medium text-gray-900 mb-2">Publish Date</h5>
+                        <div className="flex items-center">
+                          <Calendar className="w-4 h-4 text-gray-500 mr-2" />
+                          <span className="text-gray-700">{auditResult.publishDate}</span>
+                        </div>
+                      </div>
+                      <div>
+                        <h5 className="font-medium text-gray-900 mb-2">URL</h5>
+                        <div className="flex items-center">
+                          <ExternalLink className="w-4 h-4 text-gray-500 mr-2" />
+                          <a 
+                            href={auditResult.url} 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="text-blue-600 hover:text-blue-800 truncate"
+                          >
+                            {auditResult.url}
+                          </a>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <div className="mt-4">
+                      <h5 className="font-medium text-gray-900 mb-2">Description</h5>
+                      <p className="text-gray-700">{auditResult.description}</p>
+                    </div>
+
+                    <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <h5 className="font-medium text-gray-900 mb-2">Categories</h5>
+                        <div className="flex flex-wrap gap-2">
+                          {auditResult.categories.map((category, index) => (
+                            <span 
+                              key={index}
+                              className="px-2 py-1 bg-blue-100 text-blue-800 text-sm rounded-md"
+                            >
+                              {category}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                      <div>
+                        <h5 className="font-medium text-gray-900 mb-2">Tags</h5>
+                        <div className="flex flex-wrap gap-2">
+                          {auditResult.tags.map((tag, index) => (
+                            <span 
+                              key={index}
+                              className="px-2 py-1 bg-gray-100 text-gray-800 text-sm rounded-md flex items-center"
+                            >
+                              <Tag className="w-3 h-3 mr-1" />
+                              {tag}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Schema Analysis Results */}
+                  <div className="bg-white border border-gray-200 rounded-lg">
+                    <div className="bg-gray-50 px-6 py-4 border-b border-gray-200">
+                      <h4 className="text-lg font-semibold text-gray-900">
+                        Schema Analysis Results
+                      </h4>
+                    </div>
+
+                    {/* Summary Stats */}
+                    <div className="p-6 border-b border-gray-200">
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        <div className="text-center">
+                          <div className="text-2xl font-bold text-blue-600">
+                            {auditResult.schemas.length}
+                          </div>
+                          <div className="text-sm text-gray-600">Items Detected</div>
+                        </div>
+                        <div className="text-center">
+                          <div className="text-2xl font-bold text-red-600">
+                            {auditResult.issues.length}
+                          </div>
+                          <div className="text-sm text-gray-600">Errors</div>
+                        </div>
+                        <div className="text-center">
+                          <div className="text-2xl font-bold text-yellow-600">
+                            {auditResult.schemas.filter(s => s.status === 'warning').length}
+                          </div>
+                          <div className="text-sm text-gray-600">Warnings</div>
+                        </div>
+                        <div className="text-center">
+                          <div className="text-2xl font-bold text-green-600">
+                            {auditResult.seoScore}%
+                          </div>
+                          <div className="text-sm text-gray-600">SEO Score</div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Schema Items */}
+                    {auditResult.schemas.length > 0 && (
+                      <div className="p-6 border-b border-gray-200">
+                        <h5 className="font-semibold text-gray-900 flex items-center mb-4">
+                          <CheckCircle className="w-5 h-5 text-green-500 mr-2" />
+                          Detected Schemas ({auditResult.schemas.length})
+                        </h5>
+                        <div className="space-y-4">
+                          {auditResult.schemas.map((schema, index) => (
+                            <div
+                              key={index}
+                              className={`border rounded-lg p-4 ${
+                                schema.status === 'valid' 
+                                  ? 'border-green-200 bg-green-50' 
+                                  : schema.status === 'warning'
+                                  ? 'border-yellow-200 bg-yellow-50'
+                                  : 'border-red-200 bg-red-50'
+                              }`}
+                            >
+                              <div className="flex items-center justify-between mb-3">
+                                <div className="flex items-center">
+                                  <span className="font-medium text-gray-900">
+                                    {schema.type}
                                   </span>
-                                  <span className="text-gray-600 break-all">
-                                    {typeof value === 'string' ? value : JSON.stringify(value)}
+                                  <span className={`ml-2 px-2 py-1 text-xs font-medium rounded-full ${
+                                    schema.status === 'valid' 
+                                      ? 'bg-green-100 text-green-800' 
+                                      : schema.status === 'warning'
+                                      ? 'bg-yellow-100 text-yellow-800'
+                                      : 'bg-red-100 text-red-800'
+                                  }`}>
+                                    {schema.status === 'valid' ? 'VALID' : 
+                                     schema.status === 'warning' ? 'WARNING' : 'INVALID'}
                                   </span>
                                 </div>
-                              ))}
+                                {schema.status === 'valid' ? (
+                                  <CheckCircle className="w-5 h-5 text-green-500" />
+                                ) : schema.status === 'warning' ? (
+                                  <AlertTriangle className="w-5 h-5 text-yellow-500" />
+                                ) : (
+                                  <XCircle className="w-5 h-5 text-red-500" />
+                                )}
+                              </div>
+                              
+                              <div className="space-y-2">
+                                {Object.entries(schema.properties).map(([key, value]) => (
+                                  <div key={key} className="flex">
+                                    <span className="font-medium text-gray-700 w-32 flex-shrink-0">
+                                      {key}:
+                                    </span>
+                                    <span className="text-gray-600 break-all">
+                                      {typeof value === 'string' ? value : JSON.stringify(value)}
+                                    </span>
+                                  </div>
+                                ))}
+                              </div>
                             </div>
-                          </div>
-                        ))}
+                          ))}
+                        </div>
                       </div>
-                    </div>
-                  </div>
-                )}
+                    )}
 
-                {/* Errors */}
-                {auditResult.issues.length > 0 && (
-                  <div className="border border-red-200 rounded-lg">
-                    <div className="bg-red-50 px-4 py-3 border-b border-red-200">
-                      <h4 className="font-semibold text-gray-900 flex items-center">
-                        <AlertTriangle className="w-5 h-5 text-red-500 mr-2" />
-                        {t('errors')} ({auditResult.issues.length})
-                      </h4>
-                    </div>
-                    <div className="p-4">
-                      <div className="space-y-3">
-                        {auditResult.issues.map((issue, index) => (
-                          <div
-                            key={index}
-                            className="flex items-start space-x-3 p-3 bg-red-50 border border-red-200 rounded-lg"
-                          >
-                            <div className="w-5 h-5 bg-red-500 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
-                              <span className="text-white text-xs font-bold">
-                                !
-                              </span>
+                    {/* Errors */}
+                    {auditResult.issues.length > 0 && (
+                      <div className="p-6 border-b border-gray-200">
+                        <h5 className="font-semibold text-gray-900 flex items-center mb-4">
+                          <AlertTriangle className="w-5 h-5 text-red-500 mr-2" />
+                          Errors ({auditResult.issues.length})
+                        </h5>
+                        <div className="space-y-3">
+                          {auditResult.issues.map((issue, index) => (
+                            <div
+                              key={index}
+                              className="flex items-start space-x-3 p-3 bg-red-50 border border-red-200 rounded-lg"
+                            >
+                              <div className="w-5 h-5 bg-red-500 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                                <span className="text-white text-xs font-bold">
+                                  !
+                                </span>
+                              </div>
+                              <div className="flex-1">
+                                <p className="text-sm font-medium text-red-800">
+                                  Missing Required Property
+                                </p>
+                                <p className="text-sm text-red-700 mt-1">
+                                  {issue}
+                                </p>
+                              </div>
                             </div>
-                            <div className="flex-1">
-                              <p className="text-sm font-medium text-red-800">
-                                {t('missingRequiredProperty')}
-                              </p>
-                              <p className="text-sm text-red-700 mt-1">
-                                {issue}
-                              </p>
-                            </div>
-                          </div>
-                        ))}
+                          ))}
+                        </div>
                       </div>
-                    </div>
-                  </div>
-                )}
+                    )}
 
-                {/* Recommendations */}
-                {auditResult.recommendations.length > 0 && (
-                  <div className="border border-blue-200 rounded-lg">
-                    <div className="bg-blue-50 px-4 py-3 border-b border-blue-200">
-                      <h4 className="font-semibold text-gray-900 flex items-center">
-                        <CheckCircle className="w-5 h-5 text-blue-500 mr-2" />
-                        {t('recommendations')} ({auditResult.recommendations.length})
-                      </h4>
-                    </div>
-                    <div className="p-4">
-                      <div className="space-y-3">
-                        {auditResult.recommendations.map((recommendation, index) => (
-                          <div
-                            key={index}
-                            className="flex items-start space-x-3 p-3 bg-blue-50 border border-blue-200 rounded-lg"
-                          >
-                            <div className="w-5 h-5 bg-blue-500 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
-                              <span className="text-white text-xs font-bold">
-                                i
-                              </span>
+                    {/* Recommendations */}
+                    {auditResult.recommendations.length > 0 && (
+                      <div className="p-6">
+                        <h5 className="font-semibold text-gray-900 flex items-center mb-4">
+                          <CheckCircle className="w-5 h-5 text-blue-500 mr-2" />
+                          Recommendations ({auditResult.recommendations.length})
+                        </h5>
+                        <div className="space-y-3">
+                          {auditResult.recommendations.map((recommendation, index) => (
+                            <div
+                              key={index}
+                              className="flex items-start space-x-3 p-3 bg-blue-50 border border-blue-200 rounded-lg"
+                            >
+                              <div className="w-5 h-5 bg-blue-500 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                                <span className="text-white text-xs font-bold">
+                                  i
+                                </span>
+                              </div>
+                              <div className="flex-1">
+                                <p className="text-sm text-blue-800">
+                                  {recommendation}
+                                </p>
+                              </div>
                             </div>
-                            <div className="flex-1">
-                              <p className="text-sm text-blue-800">
-                                {recommendation}
-                              </p>
-                            </div>
-                          </div>
-                        ))}
+                          ))}
+                        </div>
                       </div>
-                    </div>
+                    )}
                   </div>
-                )}
-              </div>
-            </div>
+                </div>
+              )}
+            </>
           )}
         </div>
       </div>
