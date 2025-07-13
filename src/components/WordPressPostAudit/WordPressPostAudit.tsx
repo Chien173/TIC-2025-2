@@ -1,18 +1,8 @@
 import React, { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { ArrowLeft, FileText, Search, CheckCircle, AlertTriangle, Zap, Upload, ExternalLink, Clock, RefreshCw } from 'lucide-react'
-import { wordpressService, postAuditService, WordPressIntegration as IWordPressIntegration, PostAudit as IPostAudit } from '../../lib/database'
-
-interface WordPressPost {
-  id: number
-  title: { rendered: string }
-  content: { rendered: string }
-  link: string
-  date: string
-  author: number
-  status: string
-  excerpt: { rendered: string }
-}
+import { wordpressService, postAuditService, WordPressIntegration as IWordPressIntegration, PostAudit as IPostAudit, websiteService } from '../../lib/database'
+import wordpressApi, { WordPressPost } from '../../lib/wordpress'
 
 interface PostAuditResult {
   post: WordPressPost
@@ -25,6 +15,7 @@ interface PostAuditResult {
 export const WordPressPostAudit: React.FC = () => {
   const [integrations, setIntegrations] = useState<IWordPressIntegration[]>([])
   const [selectedIntegration, setSelectedIntegration] = useState<IWordPressIntegration | null>(null)
+  const [selectedWebsiteId, setSelectedWebsiteId] = useState<string>('')
   const [posts, setPosts] = useState<WordPressPost[]>([])
   const [selectedPost, setSelectedPost] = useState<WordPressPost | null>(null)
   const [auditResult, setAuditResult] = useState<PostAuditResult | null>(null)
@@ -33,6 +24,7 @@ export const WordPressPostAudit: React.FC = () => {
   const [postsLoading, setPostsLoading] = useState(false)
   const [publishLoading, setPublishLoading] = useState(false)
   const [savingAudit, setSavingAudit] = useState(false)
+  const [error, setError] = useState<string>('')
 
   useEffect(() => {
     loadIntegrations()
@@ -40,49 +32,40 @@ export const WordPressPostAudit: React.FC = () => {
 
   const loadIntegrations = async () => {
     try {
-      const data = await wordpressService.getAll()
-      const connectedIntegrations = data.filter(integration => integration.connection_status === 'connected')
-
-      console.log(connectedIntegrations);
+      setError('')
+      const connectedIntegrations = await wordpressApi.getAllIntegrations()
       
       setIntegrations(connectedIntegrations)
       
       if (connectedIntegrations.length === 1) {
-        setSelectedIntegration(connectedIntegrations[0])
-        loadPosts(connectedIntegrations[0])
+        const integration = connectedIntegrations[0]
+        setSelectedIntegration(integration)
+        const websiteId = integration.website_id || integration.website?.id
+        if (websiteId) {
+          setSelectedWebsiteId(websiteId)
+          loadPosts(websiteId)
+        }
       }
     } catch (error) {
       console.error('Error loading integrations:', error)
+      setError('Failed to load WordPress integrations')
     }
   }
 
-  console.log(integrations);
-
-  const loadPosts = async (integration: IWordPressIntegration) => {
+  const loadPosts = async (websiteId: string) => {
     setPostsLoading(true)
+    setError('')
     try {
-      const { domain, username, application_password } = integration
-      const auth = btoa(`${username}:${application_password}`)
+      const postsData = await wordpressApi.getPosts(websiteId)
+      setPosts(postsData)
       
-      const response = await fetch(`${domain}/wp-json/wp/v2/posts?per_page=20&status=publish`, {
-        headers: {
-          'Authorization': `Basic ${auth}`,
-          'Content-Type': 'application/json'
-        }
-      })
-
-      if (response.ok) {
-        const postsData = await response.json()
-        setPosts(postsData)
-        
-        // Load audit history for this integration
-        await loadAuditHistory(integration.id)
-      } else {
-        throw new Error('Failed to load posts')
+      // Load audit history for this website
+      if (selectedIntegration) {
+        await loadAuditHistory(selectedIntegration.id)
       }
     } catch (error) {
       console.error('Error loading posts:', error)
-      alert('Failed to load WordPress posts. Please check your connection.')
+      setError(`Failed to load WordPress posts: ${error instanceof Error ? error.message : 'Unknown error'}`)
     } finally {
       setPostsLoading(false)
     }
@@ -249,7 +232,7 @@ export const WordPressPostAudit: React.FC = () => {
           "name": "Your Organization",
           "logo": {
             "@type": "ImageObject",
-            "url": `${selectedIntegration.domain}/wp-content/uploads/logo.png`
+            "url": `${selectedIntegration?.domain}/wp-content/uploads/logo.png`
           }
         },
         "datePublished": auditResult.post.date,
@@ -262,8 +245,11 @@ export const WordPressPostAudit: React.FC = () => {
       }
       
       // Call the custom API endpoint with correct website_id
-      console.log(selectedIntegration);
-      const websiteId = selectedIntegration.website_id || selectedIntegration.website?.id
+      const websiteId = selectedWebsiteId
+      if (!websiteId) {
+        throw new Error('Website ID not found')
+      }
+      
       const response = await fetch(`https://wordpress.dev.teko.vn/wp-json/custom-schema-connector/v1/schema/${websiteId}`, {
         method: 'POST',
         headers: {
@@ -278,7 +264,6 @@ export const WordPressPostAudit: React.FC = () => {
       if (response.ok) {
         const result = await response.json()
         alert('Schema successfully published to WordPress!')
-        console.log('Publish result:', result)
       } else {
         const errorText = await response.text()
         throw new Error(`Failed to publish schema: ${response.status} - ${errorText}`)
@@ -293,11 +278,19 @@ export const WordPressPostAudit: React.FC = () => {
 
   const handleIntegrationChange = (integration: IWordPressIntegration) => {
     setSelectedIntegration(integration)
+    const websiteId = integration.website_id || integration.website?.id
+    setSelectedWebsiteId(websiteId || '')
     setSelectedPost(null)
     setAuditResult(null)
     setPosts([])
     setAuditHistory([])
-    loadPosts(integration)
+    setError('')
+    
+    if (websiteId) {
+      loadPosts(websiteId)
+    } else {
+      setError('Website ID not found for this integration')
+    }
   }
 
   const getPostAuditStatus = (postId: number) => {
@@ -305,8 +298,10 @@ export const WordPressPostAudit: React.FC = () => {
   }
 
   const refreshPosts = () => {
-    if (selectedIntegration) {
-      loadPosts(selectedIntegration)
+    if (selectedWebsiteId) {
+      loadPosts(selectedWebsiteId)
+    } else {
+      setError('No website selected')
     }
   }
 
@@ -326,6 +321,16 @@ export const WordPressPostAudit: React.FC = () => {
         <h1 className="text-2xl font-bold text-gray-900 mb-2">WordPress Post Schema Audit</h1>
         <p className="text-gray-600">Analyze individual WordPress posts and optimize their schema markup for better SEO</p>
       </div>
+
+      {error && (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
+          <div className="flex items-center">
+            <AlertTriangle className="w-5 h-5 text-red-500 mr-2" />
+            <span className="font-medium text-red-800">Error</span>
+          </div>
+          <p className="text-red-700 mt-1">{error}</p>
+        </div>
+      )}
 
       {integrations.length === 0 ? (
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8 text-center">
@@ -402,20 +407,22 @@ export const WordPressPostAudit: React.FC = () => {
                             : 'border-gray-200 hover:border-gray-300'
                         }`}
                       >
-                        <div className="flex items-center justify-between">
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center space-x-2 mb-2">
                           {auditStatus && (
-                            <div className="flex items-center space-x-1">
                               <CheckCircle className="w-4 h-4 text-green-500" />
-                              <span className={`text-xs font-medium px-2 py-1 rounded-full ${
+                            )}
+                            <span className={`text-xs font-medium px-2 py-1 rounded-full ${
+                              auditStatus ? (
                                 auditStatus.score >= 80 ? 'bg-green-100 text-green-800' :
                                 auditStatus.score >= 60 ? 'bg-yellow-100 text-yellow-800' :
                                 'bg-red-100 text-red-800'
-                              }`}>
-                                Score: {auditStatus.score}
-                              </span>
+                              ) : 'bg-gray-100 text-gray-600'
+                            }`}>
+                              {auditStatus ? `Score: ${auditStatus.score}` : 'Not audited'}
+                            </span>
                             </div>
-                          )}
-                          <div className="flex-1">
                             <h4 className="font-medium text-gray-900" dangerouslySetInnerHTML={{ __html: post.title.rendered }} />
                             <div className="text-sm text-gray-600">
                               Published: {new Date(post.date).toLocaleDateString()}
@@ -423,14 +430,14 @@ export const WordPressPostAudit: React.FC = () => {
                                 <> • Last audited: {new Date(auditStatus.created_at).toLocaleDateString()}</>
                               )}
                             </div>
-                          </div>
                           <div className="text-xs text-gray-500 mt-1">
                             <a href={post.link} target="_blank" rel="noopener noreferrer" className="hover:text-blue-600 flex items-center">
                               <ExternalLink className="w-3 h-3 mr-1" />
                               View Post
                             </a>
                           </div>
-                          <div className="flex items-center space-x-2">
+                          </div>
+                          <div className="flex items-center space-x-2 ml-4">
                             {savingAudit && selectedPost?.id === post.id && (
                               <div className="flex items-center space-x-1 text-xs text-gray-500">
                                 <Clock className="w-3 h-3 animate-spin" />
@@ -440,9 +447,9 @@ export const WordPressPostAudit: React.FC = () => {
                             <button
                               onClick={() => auditPost(post)}
                               disabled={loading}
-                              className={`px-4 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2 transition-all ${
+                              className={`px-4 py-2 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2 transition-all ${
                                 auditStatus ? 'bg-green-600 text-white' : 'bg-blue-600 text-white'
-                              }`}
+                              } ${auditStatus ? 'hover:bg-green-700' : 'hover:bg-blue-700'}`}
                             >
                               <Search className="w-4 h-4" />
                               <span>

@@ -1,33 +1,82 @@
 import { supabase } from "./supabase";
 
-// create wordpress api service
+export interface WordPressPost {
+  id: number
+  title: { rendered: string }
+  content: { rendered: string }
+  link: string
+  date: string
+  author: number
+  status: string
+  excerpt: { rendered: string }
+}
+
+// WordPress API service
 const wordpressApi = {
-  getIntegrations: async (websiteId: string) => {
-    // call supabase to get the integrations for the website
-    const { data, error } = await supabase
+  getIntegrations: async (websiteId?: string) => {
+    let query = supabase
       .from("wordpress_integrations")
       .select("*")
-      .eq("website_id", websiteId);
+      .eq("connection_status", "connected")
+      .is("deleted_at", null);
+    
+    if (websiteId) {
+      query = query.eq("website_id", websiteId);
+    }
+    
+    const { data, error } = await query;
     if (error) throw error;
     return data;
-  }
+  },
 
-  getPosts: async (websiteId: string) => {
+  getPosts: async (websiteId: string): Promise<WordPressPost[]> => {
+    // Get integrations for the website
     const integrations = await wordpressApi.getIntegrations(websiteId);
+    
+    if (!integrations || integrations.length === 0) {
+      throw new Error("No WordPress integrations found for this website");
+    }
 
-    const { data: integrationsData, } = integrations;
+    // Use the first integration (assuming one integration per website)
+    const integration = integrations[0];
+    const { domain, username, application_password } = integration;
 
-    const { domain, username, application_password } = integrationsData;
-
-    // call wordpress api to get the posts for each integration
-    const res = await fetch(`https://${domain}/wp-json/wp/v2/posts`, {
+    // Ensure domain has protocol
+    const fullDomain = domain.startsWith('http') ? domain : `https://${domain}`;
+    
+    // Create basic auth header
+    const auth = btoa(`${username}:${application_password}`);
+    
+    // Call WordPress API to get posts
+    const response = await fetch(`${fullDomain}/wp-json/wp/v2/posts?per_page=20&status=publish`, {
       headers: {
+        "Authorization": `Basic ${auth}`,
         "Content-Type": "application/json",
       },
       method: "GET",
     });
-    return res.json();
+
+    if (!response.ok) {
+      throw new Error(`Failed to fetch posts: ${response.status} - ${response.statusText}`);
+    }
+
+    return await response.json();
   },
+
+  getAllIntegrations: async () => {
+    const { data, error } = await supabase
+      .from("wordpress_integrations")
+      .select(`
+        *,
+        website:websites(*)
+      `)
+      .eq("connection_status", "connected")
+      .is("deleted_at", null)
+      .order("created_at", { ascending: false });
+    
+    if (error) throw error;
+    return data;
+  }
 };
 
 export default wordpressApi;
