@@ -218,7 +218,7 @@ export const WordPressPostAudit: React.FC = () => {
   }
 
   const publishSchema = async () => {
-    if (!auditResult || !selectedIntegration) return
+    if (!auditResult || !selectedIntegration || !selectedPost) return
     
     setPublishLoading(true)
     try {
@@ -226,7 +226,7 @@ export const WordPressPostAudit: React.FC = () => {
       const optimizedSchema = {
         "@context": "https://schema.org",
         "@type": "Article",
-        "headline": auditResult.post.title.rendered,
+        "headline": selectedPost.title.rendered,
         "author": {
           "@type": "Person",
           "name": "Author Name"
@@ -236,45 +236,90 @@ export const WordPressPostAudit: React.FC = () => {
           "name": "Your Organization",
           "logo": {
             "@type": "ImageObject",
-            "url": `${selectedIntegration?.domain}/wp-content/uploads/logo.png`
+            "url": `${selectedIntegration.domain}/wp-content/uploads/logo.png`
           }
         },
-        "datePublished": auditResult.post.date,
-        "dateModified": auditResult.post.date,
-        "url": auditResult.post.link,
+        "datePublished": selectedPost.date,
+        "dateModified": selectedPost.date,
+        "url": selectedPost.link,
         "mainEntityOfPage": {
           "@type": "WebPage",
-          "@id": auditResult.post.link
+          "@id": selectedPost.link
         }
       }
       
-      // Call the custom API endpoint with correct website_id
-      const websiteId = selectedWebsiteId
-      if (!websiteId) {
-        throw new Error('Website ID not found')
-      }
+      // Extract domain from selectedIntegration and use selectedPost.id
+      const domain = selectedIntegration.domain
+      const postId = selectedPost.id
       
-      const response = await fetch(`https://wordpress.dev.teko.vn/wp-json/custom-schema-connector/v1/schema/${websiteId}`, {
+      // Ensure domain has protocol
+      const apiDomain = domain.startsWith('http') ? domain : `https://${domain}`
+      
+      console.log('Publishing schema to:', `${apiDomain}/wp-json/custom-schema-connector/v1/schema/${postId}`)
+      console.log('Schema data:', optimizedSchema)
+      
+      // Try different approaches to handle CORS
+      const requestOptions = {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'X-Api-Key': 'MySecretKey_2025!@#$ForSchema'
+          'X-Api-Key': 'MySecretKey_2025!@#$ForSchema',
+          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
+          'Access-Control-Allow-Headers': 'Content-Type, X-Api-Key'
         },
         body: JSON.stringify({
           schema: JSON.stringify(optimizedSchema)
         })
-      })
+      }
+      
+      // First try: Direct fetch
+      let response
+      try {
+        response = await fetch(`${apiDomain}/wp-json/custom-schema-connector/v1/schema/${postId}`, requestOptions)
+      } catch (corsError) {
+        console.error('CORS error with direct fetch:', corsError)
+        
+        // Second try: Use WordPress credentials for authentication
+        const { username, application_password } = selectedIntegration
+        const auth = btoa(`${username}:${application_password}`)
+        
+        const authRequestOptions = {
+          ...requestOptions,
+          headers: {
+            ...requestOptions.headers,
+            'Authorization': `Basic ${auth}`
+          }
+        }
+        
+        try {
+          response = await fetch(`${apiDomain}/wp-json/custom-schema-connector/v1/schema/${postId}`, authRequestOptions)
+        } catch (authError) {
+          console.error('Auth error:', authError)
+          
+          // Third try: Use proxy or alternative method
+          throw new Error(`CORS error: Cannot connect to ${apiDomain}. Please check if the API endpoint supports CORS or if the domain is accessible.`)
+        }
+      }
 
       if (response.ok) {
         const result = await response.json()
-        alert('Schema successfully published to WordPress!')
+        console.log('Publish result:', result)
+        alert(`Schema successfully published to post "${selectedPost.title.rendered}"!`)
       } else {
         const errorText = await response.text()
+        console.error('API Error Response:', errorText)
         throw new Error(`Failed to publish schema: ${response.status} - ${errorText}`)
       }
     } catch (error: any) {
       console.error('Publish error:', error)
-      alert(`Error publishing schema: ${error.message}`)
+      
+      // Provide more detailed error information
+      if (error.message.includes('CORS')) {
+        alert(`CORS Error: ${error.message}\n\nSuggestions:\n1. Check if the WordPress site allows cross-origin requests\n2. Verify the API endpoint is accessible\n3. Contact the site administrator to enable CORS for this domain`)
+      } else {
+        alert(`Error publishing schema: ${error.message}`)
+      }
     } finally {
       setPublishLoading(false)
     }
@@ -527,11 +572,11 @@ export const WordPressPostAudit: React.FC = () => {
                   </div>
                   <button
                     onClick={publishSchema}
-                    disabled={publishLoading}
+                    disabled={publishLoading || !selectedPost}
                     className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2 transition-all"
                   >
                     <Upload className="w-4 h-4" />
-                    <span>{publishLoading ? 'Publishing...' : 'Publish Schema'}</span>
+                    <span>{publishLoading ? 'Publishing...' : `Publish to "${selectedPost?.title.rendered || 'Post'}"`}</span>
                   </button>
                 </div>
               </div>
