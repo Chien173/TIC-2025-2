@@ -157,6 +157,8 @@ export const WordPressPostAudit: React.FC = () => {
     }
   }
 
+  console.log(integrations);
+
   const saveAuditResult = async (
     post: WordPressPost, 
     schemas: any[], 
