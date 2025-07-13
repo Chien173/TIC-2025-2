@@ -279,10 +279,7 @@ export const WordPressPostAudit: React.FC = () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'X-Api-Key': 'MySecretKey_2025!@#$ForSchema',
-          'Access-Control-Allow-Origin': '*',
-          'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
-          'Access-Control-Allow-Headers': 'Content-Type, X-Api-Key'
+          'X-Api-Key': 'MySecretKey_2025!@#$ForSchema'
         },
         body: JSON.stringify({
           schema: JSON.stringify(optimizedSchema)
