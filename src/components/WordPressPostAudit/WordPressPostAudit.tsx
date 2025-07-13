@@ -42,6 +42,9 @@ export const WordPressPostAudit: React.FC = () => {
     try {
       const data = await wordpressService.getAll()
       const connectedIntegrations = data.filter(integration => integration.connection_status === 'connected')
+
+      console.log(connectedIntegrations);
+      
       setIntegrations(connectedIntegrations)
       
       if (connectedIntegrations.length === 1) {
