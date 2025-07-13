@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
+import { useLanguage } from "../../contexts/LanguageContext";
+import { useTracking } from "../../hooks/useTracking";
 import {
   ArrowLeft,
   FileText,
@@ -30,6 +32,8 @@ interface PostAuditResult {
 }
 
 export const WordPressPostAudit: React.FC = () => {
+  const { t } = useLanguage();
+  const { trackPostAudit, trackPublishSchema } = useTracking();
   const [integrations, setIntegrations] = useState<IWordPressIntegration[]>([]);
   const [selectedIntegration, setSelectedIntegration] =
     useState<IWordPressIntegration | null>(null);
@@ -123,6 +127,9 @@ export const WordPressPostAudit: React.FC = () => {
   const auditPost = async (post: WordPressPost) => {
     setLoading(true);
     setSelectedPost(post);
+    
+    // Track the post audit action
+    trackPostAudit(post.id.toString(), post.title.rendered);
 
     try {
       // Simulate schema analysis of the post content
@@ -265,6 +272,9 @@ export const WordPressPostAudit: React.FC = () => {
 
   const publishSchema = async () => {
     if (!auditResult || !selectedIntegration || !selectedPost) return;
+
+    // Track the publish action
+    trackPublishSchema(selectedIntegration.domain, selectedPost.id.toString());
 
     setPublishLoading(true);
     try {
@@ -424,25 +434,20 @@ export const WordPressPostAudit: React.FC = () => {
           className="flex items-center text-gray-600 hover:text-gray-900 transition-colors"
         >
           <ArrowLeft className="w-4 h-4 mr-2" />
-          Back to Dashboard
+          {t('common.back')} to Dashboard
         </Link>
       </div>
 
       <div>
-        <h1 className="text-2xl font-bold text-gray-900 mb-2">
-          WordPress Post Schema Audit
-        </h1>
-        <p className="text-gray-600">
-          Analyze individual WordPress posts and optimize their schema markup
-          for better SEO
-        </p>
+        <h1 className="text-2xl font-bold text-gray-900 mb-2">{t('dashboard.wpAudit.title')}</h1>
+        <p className="text-gray-600">{t('dashboard.wpAudit.description')}</p>
       </div>
 
       {error && (
         <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
           <div className="flex items-center">
             <AlertTriangle className="w-5 h-5 text-red-500 mr-2" />
-            <span className="font-medium text-red-800">Error</span>
+            <span className="font-medium text-red-800">{t('common.error')}</span>
           </div>
           <p className="text-red-700 mt-1">{error}</p>
         </div>
@@ -592,7 +597,7 @@ export const WordPressPostAudit: React.FC = () => {
                             {savingAudit && selectedPost?.id === post.id && (
                               <div className="flex items-center space-x-1 text-xs text-gray-500">
                                 <Clock className="w-3 h-3 animate-spin" />
-                                <span>Saving...</span>
+                                <span>{t('schemaAudit.saving')}</span>
                               </div>
                             )}
                             <button
@@ -611,10 +616,10 @@ export const WordPressPostAudit: React.FC = () => {
                               <Search className="w-4 h-4" />
                               <span>
                                 {loading && selectedPost?.id === post.id
-                                  ? "Auditing..."
+                                  ? t('schemaAudit.analyzing')
                                   : auditStatus
                                   ? "Re-audit"
-                                  : "Audit"}
+                                  : t('schemaAudit.button')}
                               </span>
                             </button>
                           </div>
@@ -709,7 +714,7 @@ export const WordPressPostAudit: React.FC = () => {
                   >
                     <Upload className="w-4 h-4" />
                     <span>
-                      {publishLoading ? "Publishing..." : "Publish Schema"}
+                      {publishLoading ? t('wp.publishing') : t('wp.publish')}
                     </span>
                   </button>
                 </div>
@@ -883,7 +888,7 @@ export const WordPressPostAudit: React.FC = () => {
                           </div>
                         ))}
                       </div>
-                    </div>
+                    <p className="text-gray-600">{t('common.loading')} posts...</p>
                   </div>
                 )}
 

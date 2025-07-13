@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from 'react'
+import { useLanguage } from '../../contexts/LanguageContext'
+import { useTracking } from '../../hooks/useTracking'
 import { Globe, Key, User, CheckCircle, AlertCircle, Upload, Trash2 } from 'lucide-react'
 import { wordpressService, websiteService, WordPressIntegration as IWordPressIntegration } from '../../lib/database'
 
@@ -14,7 +16,13 @@ interface ConnectionStatus {
   error?: string
 }
 
-const WordPressIntegration: React.FC = () => {
+interface WordPressIntegrationProps {
+  onStatsUpdate?: () => void;
+}
+
+const WordPressIntegration: React.FC<WordPressIntegrationProps> = ({ onStatsUpdate }) => {
+  const { t } = useLanguage()
+  const { trackConnectWordPress, trackPublishSchema } = useTracking()
   const [credentials, setCredentials] = useState<WordPressCredentials>({
     domain: '',
     username: '',
@@ -42,6 +50,9 @@ const WordPressIntegration: React.FC = () => {
   const verifyCredentials = async () => {
     setLoading(true)
     setConnectionStatus({ connected: false })
+    
+    // Track the connection attempt
+    trackConnectWordPress(credentials.domain)
     
     try {
       const { domain, username, applicationPassword } = credentials
@@ -84,6 +95,11 @@ const WordPressIntegration: React.FC = () => {
         setSelectedIntegration(integration)
         await loadIntegrations()
         
+        // Update dashboard stats
+        if (onStatsUpdate) {
+          onStatsUpdate()
+        }
+        
         // Clear form
         setCredentials({
           domain: '',
@@ -107,6 +123,9 @@ const WordPressIntegration: React.FC = () => {
 
   const publishSchema = async () => {
     if (!selectedIntegration) return
+    
+    // Track the publish action
+    trackPublishSchema(selectedIntegration.domain)
     
     setPublishLoading(true)
     try {
@@ -156,6 +175,11 @@ const WordPressIntegration: React.FC = () => {
       if (response.ok) {
         const post = await response.json()
         alert(`Schema successfully published to WordPress! Post ID: ${post.id}`)
+        
+        // Update dashboard stats
+        if (onStatsUpdate) {
+          onStatsUpdate()
+        }
       } else {
         const errorText = await response.text()
         throw new Error(`Failed to publish schema: ${errorText}`)
@@ -199,108 +223,106 @@ const WordPressIntegration: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-        <div className="mb-6">
-          <h2 className="text-xl font-semibold text-gray-900 mb-2">WordPress Integration</h2>
-          <p className="text-gray-600">Connect to your WordPress site to publish schema markup</p>
+      <div className="mb-6">
+        <h2 className="text-xl font-semibold text-gray-900 mb-2">{t('wp.title')}</h2>
+        <p className="text-gray-600">{t('wp.description')}</p>
+      </div>
+
+      <div className="space-y-4 mb-6">
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            <Globe className="w-4 h-4 inline mr-1" />
+            {t('wp.domain')}
+          </label>
+          <input
+            type="url"
+            value={credentials.domain}
+            onChange={(e) => setCredentials(prev => ({ ...prev, domain: e.target.value }))}
+            placeholder="https://yoursite.com or yoursite.com"
+            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          />
         </div>
 
-        <div className="space-y-4 mb-6">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              <Globe className="w-4 h-4 inline mr-1" />
-              WordPress Domain
-            </label>
-            <input
-              type="url"
-              value={credentials.domain}
-              onChange={(e) => setCredentials(prev => ({ ...prev, domain: e.target.value }))}
-              placeholder="https://yoursite.com or yoursite.com"
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              <User className="w-4 h-4 inline mr-1" />
-              Username
-            </label>
-            <input
-              type="text"
-              value={credentials.username}
-              onChange={(e) => setCredentials(prev => ({ ...prev, username: e.target.value }))}
-              placeholder="WordPress username"
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              <Key className="w-4 h-4 inline mr-1" />
-              Application Password
-            </label>
-            <input
-              type="password"
-              value={credentials.applicationPassword}
-              onChange={(e) => setCredentials(prev => ({ ...prev, applicationPassword: e.target.value }))}
-              placeholder="WordPress application password"
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            />
-            <p className="text-xs text-gray-500 mt-1">
-              Generate an application password in your WordPress admin under Users → Profile
-            </p>
-          </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            <User className="w-4 h-4 inline mr-1" />
+            {t('wp.username')}
+          </label>
+          <input
+            type="text"
+            value={credentials.username}
+            onChange={(e) => setCredentials(prev => ({ ...prev, username: e.target.value }))}
+            placeholder="WordPress username"
+            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          />
         </div>
 
-        <div className="flex space-x-3 mb-6">
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            <Key className="w-4 h-4 inline mr-1" />
+            {t('wp.password')}
+          </label>
+          <input
+            type="password"
+            value={credentials.applicationPassword}
+            onChange={(e) => setCredentials(prev => ({ ...prev, applicationPassword: e.target.value }))}
+            placeholder="WordPress application password"
+            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          />
+          <p className="text-xs text-gray-500 mt-1">
+            {t('wp.passwordHelp')}
+          </p>
+        </div>
+      </div>
+
+      <div className="flex space-x-3 mb-6">
+        <button
+          onClick={verifyCredentials}
+          disabled={loading || !credentials.domain || !credentials.username || !credentials.applicationPassword}
+          className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed font-medium transition-all"
+        >
+          {loading ? t('wp.verifying') : t('wp.connect')}
+        </button>
+        
+        {selectedIntegration && connectionStatus.connected && (
           <button
-            onClick={verifyCredentials}
-            disabled={loading || !credentials.domain || !credentials.username || !credentials.applicationPassword}
-            className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed font-medium transition-all"
+            onClick={publishSchema}
+            disabled={publishLoading}
+            className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed font-medium transition-all flex items-center space-x-2"
           >
-            {loading ? 'Verifying...' : 'Connect & Save'}
+            <Upload className="w-4 h-4" />
+            <span>{publishLoading ? t('wp.publishing') : t('wp.publish')}</span>
           </button>
-          
-          {selectedIntegration && connectionStatus.connected && (
-            <button
-              onClick={publishSchema}
-              disabled={publishLoading}
-              className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed font-medium transition-all flex items-center space-x-2"
-            >
-              <Upload className="w-4 h-4" />
-              <span>{publishLoading ? 'Publishing...' : 'Publish Schema'}</span>
-            </button>
-          )}
-        </div>
-
-        {connectionStatus.connected && connectionStatus.userInfo && (
-          <div className="p-4 bg-green-50 border border-green-200 rounded-lg mb-6">
-            <div className="flex items-center mb-2">
-              <CheckCircle className="w-5 h-5 text-green-500 mr-2" />
-              <span className="font-medium text-green-800">Connected Successfully</span>
-            </div>
-            <div className="text-sm text-green-700">
-              <p>User: {connectionStatus.userInfo.name}</p>
-              <p>Email: {connectionStatus.userInfo.email}</p>
-              <p>Role: {connectionStatus.userInfo.roles?.join(', ')}</p>
-            </div>
-          </div>
-        )}
-
-        {connectionStatus.error && (
-          <div className="p-4 bg-red-50 border border-red-200 rounded-lg mb-6">
-            <div className="flex items-center mb-2">
-              <AlertCircle className="w-5 h-5 text-red-500 mr-2" />
-              <span className="font-medium text-red-800">Connection Failed</span>
-            </div>
-            <p className="text-sm text-red-700">{connectionStatus.error}</p>
-          </div>
         )}
       </div>
 
+      {connectionStatus.connected && connectionStatus.userInfo && (
+        <div className="p-4 bg-green-50 border border-green-200 rounded-lg mb-6">
+          <div className="flex items-center mb-2">
+            <CheckCircle className="w-5 h-5 text-green-500 mr-2" />
+            <span className="font-medium text-green-800">{t('wp.connected')}</span>
+          </div>
+          <div className="text-sm text-green-700">
+            <p>User: {connectionStatus.userInfo.name}</p>
+            <p>Email: {connectionStatus.userInfo.email}</p>
+            <p>Role: {connectionStatus.userInfo.roles?.join(', ')}</p>
+          </div>
+        </div>
+      )}
+
+      {connectionStatus.error && (
+        <div className="p-4 bg-red-50 border border-red-200 rounded-lg mb-6">
+          <div className="flex items-center mb-2">
+            <AlertCircle className="w-5 h-5 text-red-500 mr-2" />
+            <span className="font-medium text-red-800">{t('wp.failed')}</span>
+          </div>
+          <p className="text-sm text-red-700">{connectionStatus.error}</p>
+        </div>
+      )}
+
       {integrations.length > 0 && (
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Connected WordPress Sites</h3>
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">{t('wp.connectedSites')}</h3>
           <div className="space-y-3">
             {integrations.map((integration) => (
               <div 

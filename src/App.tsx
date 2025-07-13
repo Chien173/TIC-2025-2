@@ -6,12 +6,13 @@ import {
   Navigate,
 } from "react-router-dom";
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
+import { LanguageProvider } from "./contexts/LanguageContext";
 import { LoginForm } from "./components/Auth/LoginForm";
 import { Layout } from "./components/Layout";
 import { Dashboard } from "./components/Dashboard/Dashboard";
 import { WordPressPostAudit } from "./components/WordPressPostAudit/WordPressPostAudit";
 import { TrackingProvider } from "./contexts/TrackingProvider";
-// edit
+
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({
   children,
 }) => {
@@ -67,13 +68,15 @@ const AppRoutes: React.FC = () => {
 function App() {
   return (
     <AuthProvider>
-      <TrackingProvider>
-        <Router>
-          <div className="font-sans">
-            <AppRoutes />
-          </div>
-        </Router>
-      </TrackingProvider>
+      <LanguageProvider>
+        <TrackingProvider>
+          <Router>
+            <div className="font-sans">
+              <AppRoutes />
+            </div>
+          </Router>
+        </TrackingProvider>
+      </LanguageProvider>
     </AuthProvider>
   );
 }
