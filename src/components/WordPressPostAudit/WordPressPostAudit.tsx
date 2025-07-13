@@ -14,7 +14,10 @@ import {
   Loader2,
   FileText,
   BarChart3,
-  Upload
+  Upload,
+  Copy,
+  Check,
+  Zap
 } from "lucide-react";
 import { useLanguage } from "../../contexts/LanguageContext";
 import { useTracking } from "../../hooks/useTracking";
@@ -49,9 +52,12 @@ export const WordPressPostAudit: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [publishLoading, setPublishLoading] = useState(false);
   const [loadingPosts, setLoadingPosts] = useState(false);
+  const [generatingSchema, setGeneratingSchema] = useState(false);
+  const [suggestedSchema, setSuggestedSchema] = useState<string | null>(null);
+  const [copiedSchema, setCopiedSchema] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { t } = useLanguage();
-  const { trackPostAudit, trackPublishSchema } = useTracking();
+  const { trackPostAudit, trackPublishSchema, track } = useTracking();
 
   useEffect(() => {
     loadIntegrations();
