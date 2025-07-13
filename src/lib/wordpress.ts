@@ -42,14 +42,14 @@ const wordpressApi = {
     const { domain, username, application_password } = integration;
 
     // Ensure domain has protocol
-    const fullDomain = domain.startsWith("http") ? domain : `https://${domain}`;
+    // const fullDomain = domain.startsWith("http") ? domain : `https://${domain}`;
 
     // Create basic auth header
     const auth = btoa(`${username}:${application_password}`);
 
     // Call WordPress API to get posts
     const response = await fetch(
-      `${fullDomain}/wp-json/wp/v2/posts?per_page=20&status=publish`,
+      `/wp-json/wp/v2/posts?per_page=20&status=publish`,
       {
         headers: {
           Authorization: `Basic ${auth}`,
