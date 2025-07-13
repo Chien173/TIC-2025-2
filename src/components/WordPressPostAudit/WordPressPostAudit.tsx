@@ -385,36 +385,38 @@ export const WordPressPostAudit: React.FC = () => {
                 </div>
               ) : (
                 <div className="space-y-3">
-                  {posts.map((post) => (
+                  {posts.map((post) => {
                     const auditStatus = getPostAuditStatus(post.id)
-                    <div
-                      key={post.id}
-                      className={`p-4 rounded-lg border-2 transition-all ${
-                        selectedPost?.id === post.id
-                          ? 'border-blue-500 bg-blue-50'
-                          : 'border-gray-200 hover:border-gray-300'
-                      }`}
-                    >
-                      <div className="flex items-center justify-between">
-                              {auditStatus && (
-                                <div className="flex items-center space-x-1">
-                                  <CheckCircle className="w-4 h-4 text-green-500" />
-                                  <span className={`text-xs font-medium px-2 py-1 rounded-full ${
-                                    auditStatus.score >= 80 ? 'bg-green-100 text-green-800' :
-                                    auditStatus.score >= 60 ? 'bg-yellow-100 text-yellow-800' :
-                                    'bg-red-100 text-red-800'
-                                  }`}>
-                                    Score: {auditStatus.score}
-                                  </span>
-                                </div>
-                              )}
-                        <div className="flex-1">
-                          <h4 className="font-medium text-gray-900" dangerouslySetInnerHTML={{ __html: post.title.rendered }} />
+                    return (
+                      <div
+                        key={post.id}
+                        className={`p-4 rounded-lg border-2 transition-all ${
+                          selectedPost?.id === post.id
+                            ? 'border-blue-500 bg-blue-50'
+                            : 'border-gray-200 hover:border-gray-300'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between">
+                          {auditStatus && (
+                            <div className="flex items-center space-x-1">
+                              <CheckCircle className="w-4 h-4 text-green-500" />
+                              <span className={`text-xs font-medium px-2 py-1 rounded-full ${
+                                auditStatus.score >= 80 ? 'bg-green-100 text-green-800' :
+                                auditStatus.score >= 60 ? 'bg-yellow-100 text-yellow-800' :
+                                'bg-red-100 text-red-800'
+                              }`}>
+                                Score: {auditStatus.score}
+                              </span>
+                            </div>
+                          )}
+                          <div className="flex-1">
+                            <h4 className="font-medium text-gray-900" dangerouslySetInnerHTML={{ __html: post.title.rendered }} />
+                            <div className="text-sm text-gray-600">
                               Published: {new Date(post.date).toLocaleDateString()}
                               {auditStatus && (
                                 <> • Last audited: {new Date(auditStatus.created_at).toLocaleDateString()}</>
                               )}
-                            Published: {new Date(post.date).toLocaleDateString()}
+                            </div>
                           </div>
                           <div className="text-xs text-gray-500 mt-1">
                             <a href={post.link} target="_blank" rel="noopener noreferrer" className="hover:text-blue-600 flex items-center">
@@ -443,10 +445,10 @@ export const WordPressPostAudit: React.FC = () => {
                               </span>
                             </button>
                           </div>
-                        </button>
+                        </div>
                       </div>
-                    )}
-                  ))}
+                    )
+                  })}
                 </div>
               )}
             </div>
