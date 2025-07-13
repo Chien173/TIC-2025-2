@@ -26,6 +26,8 @@ export const WordPressPostAudit: React.FC = () => {
   const [savingAudit, setSavingAudit] = useState(false)
   const [error, setError] = useState<string>('')
 
+  console.log(posts);
+
   useEffect(() => {
     loadIntegrations()
   }, [])
