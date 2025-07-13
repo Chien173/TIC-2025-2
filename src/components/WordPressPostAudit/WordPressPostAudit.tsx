@@ -13,7 +13,8 @@ import {
   ArrowLeft,
   Loader2,
   FileText,
-  BarChart3
+  BarChart3,
+  Upload
 } from "lucide-react";
 import { useLanguage } from "../../contexts/LanguageContext";
 import { useTracking } from "../../hooks/useTracking";
@@ -46,10 +47,11 @@ export const WordPressPostAudit: React.FC = () => {
   const [auditResult, setAuditResult] = useState<AuditResult | null>(null);
   const [postAudits, setPostAudits] = useState<PostAudit[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [publishLoading, setPublishLoading] = useState(false);
   const [loadingPosts, setLoadingPosts] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { t } = useLanguage();
-  const { trackPostAudit } = useTracking();
+  const { trackPostAudit, trackPublishSchema } = useTracking();
 
   useEffect(() => {
     loadIntegrations();
@@ -109,6 +111,87 @@ export const WordPressPostAudit: React.FC = () => {
     }
   };
 
+  const publishSchemaToWordPress = async () => {
+    if (!selectedIntegration || !selectedPost || !auditResult) return;
+
+    setPublishLoading(true);
+    try {
+      // Generate optimized schema based on audit results
+      const optimizedSchema = {
+        "@context": "https://schema.org",
+        "@type": "Article",
+        "headline": auditResult.title,
+        "description": auditResult.description,
+        "author": {
+          "@type": "Person",
+          "name": auditResult.author
+        },
+        "datePublished": selectedPost.date,
+        "dateModified": selectedPost.date,
+        "url": auditResult.url,
+        "mainEntityOfPage": {
+          "@type": "WebPage",
+          "@id": auditResult.url
+        },
+        "publisher": {
+          "@type": "Organization",
+          "name": selectedIntegration.domain,
+          "url": selectedIntegration.domain
+        },
+        // Add image if available
+        "image": {
+          "@type": "ImageObject",
+          "url": `${selectedIntegration.domain}/wp-content/uploads/default-image.jpg`,
+          "width": 1200,
+          "height": 630
+        }
+      };
+
+      // Prepare API request
+      const apiDomain = selectedIntegration.domain;
+      const postId = selectedPost.id;
+      
+      const requestOptions = {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Api-Key": "MySecretKey_2025!@#$ForSchema",
+        },
+        body: JSON.stringify({
+          schema: JSON.stringify(optimizedSchema),
+        }),
+      };
+
+      // First try: Direct fetch
+      let response;
+      try {
+        response = await fetch(
+          `${apiDomain}/wp-json/custom-schema-connector/v1/schema/${postId}`,
+          requestOptions
+        );
+      } catch (fetchError) {
+        console.error('Direct fetch failed:', fetchError);
+        throw new Error('Failed to connect to WordPress API');
+      }
+
+      if (response.ok) {
+        const result = await response.json();
+        
+        // Track successful publish
+        trackPublishSchema(selectedIntegration.domain, selectedPost.id.toString());
+        
+        alert(`Schema successfully published to WordPress post! Response: ${JSON.stringify(result)}`);
+      } else {
+        const errorText = await response.text();
+        throw new Error(`Failed to publish schema: HTTP ${response.status} - ${errorText}`);
+      }
+    } catch (error: any) {
+      console.error('Publish schema error:', error);
+      alert(`Error publishing schema: ${error.message}`);
+    } finally {
+      setPublishLoading(false);
+    }
+  };
   const handlePostAudit = async (post: WordPressPost) => {
     if (!selectedIntegration) return;
 
@@ -446,9 +529,25 @@ export const WordPressPostAudit: React.FC = () => {
               {auditResult && selectedPost && (
                 <div className="mt-8 space-y-6">
                   <div className="border-t border-gray-200 pt-6">
-                    <h3 className="text-xl font-bold text-gray-900 mb-4">
-                      Audit Results for: {selectedPost.title.rendered}
-                    </h3>
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="text-xl font-bold text-gray-900">
+                        Audit Results for: {selectedPost.title.rendered}
+                      </h3>
+                      <button
+                        onClick={publishSchemaToWordPress}
+                        disabled={publishLoading}
+                        className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2 transition-colors"
+                      >
+                        {publishLoading ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <Upload className="w-4 h-4" />
+                        )}
+                        <span>
+                          {publishLoading ? 'Publishing...' : 'Publish Schema'}
+                        </span>
+                      </button>
+                    </div>
                   </div>
 
                   {/* Post Information */}
