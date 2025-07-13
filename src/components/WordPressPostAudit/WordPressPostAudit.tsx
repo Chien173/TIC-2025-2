@@ -56,6 +56,8 @@ export const WordPressPostAudit: React.FC = () => {
     }
   }
 
+  console.log(integrations);
+
   const loadPosts = async (integration: IWordPressIntegration) => {
     setPostsLoading(true)
     try {
