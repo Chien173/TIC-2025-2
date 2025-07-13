@@ -14,7 +14,9 @@ import {
   Loader2,
   FileText,
   BarChart3,
-  Upload
+  Upload,
+  Copy,
+  Check
 } from "lucide-react";
 import { useLanguage } from "../../contexts/LanguageContext";
 import { useTracking } from "../../hooks/useTracking";
@@ -37,6 +39,7 @@ interface AuditResult {
   issues: string[];
   seoScore: number;
   recommendations: string[];
+  generatedSchema?: any;
 }
 
 export const WordPressPostAudit: React.FC = () => {
@@ -49,9 +52,10 @@ export const WordPressPostAudit: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [publishLoading, setPublishLoading] = useState(false);
   const [loadingPosts, setLoadingPosts] = useState(false);
+  const [copiedSchema, setCopiedSchema] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { t } = useLanguage();
-  const { trackPostAudit, trackPublishSchema } = useTracking();
+  const { trackPostAudit, trackPublishSchema, track } = useTracking();
 
   useEffect(() => {
     loadIntegrations();
@@ -111,41 +115,67 @@ export const WordPressPostAudit: React.FC = () => {
     }
   };
 
+  const generateOptimizedSchema = (post: WordPressPost, auditResult: AuditResult) => {
+    return {
+      "@context": "https://schema.org",
+      "@type": "Article",
+      "headline": auditResult.title,
+      "description": auditResult.description,
+      "author": {
+        "@type": "Person",
+        "name": auditResult.author
+      },
+      "datePublished": post.date,
+      "dateModified": post.date,
+      "url": auditResult.url,
+      "mainEntityOfPage": {
+        "@type": "WebPage",
+        "@id": auditResult.url
+      },
+      "publisher": {
+        "@type": "Organization",
+        "name": selectedIntegration?.domain || "Website",
+        "url": selectedIntegration?.domain || auditResult.url
+      },
+      "image": {
+        "@type": "ImageObject",
+        "url": `${selectedIntegration?.domain}/wp-content/uploads/default-image.jpg`,
+        "width": 1200,
+        "height": 630
+      }
+    };
+  };
+
+  const copySchemaToClipboard = async () => {
+    if (!auditResult?.generatedSchema) return;
+    
+    try {
+      const schemaText = JSON.stringify(auditResult.generatedSchema, null, 2);
+      await navigator.clipboard.writeText(schemaText);
+      setCopiedSchema(true);
+      
+      // Track copy event
+      track('schema_copied', {
+        postId: selectedPost?.id,
+        postTitle: selectedPost?.title.rendered,
+        domain: selectedIntegration?.domain,
+        timestamp: new Date().toISOString(),
+        action: 'copy_schema'
+      });
+      
+      setTimeout(() => setCopiedSchema(false), 2000);
+    } catch (error) {
+      console.error('Failed to copy schema:', error);
+      alert('Failed to copy schema to clipboard');
+    }
+  };
   const publishSchemaToWordPress = async () => {
     if (!selectedIntegration || !selectedPost || !auditResult) return;
 
     setPublishLoading(true);
     try {
-      // Generate optimized schema based on audit results
-      const optimizedSchema = {
-        "@context": "https://schema.org",
-        "@type": "Article",
-        "headline": auditResult.title,
-        "description": auditResult.description,
-        "author": {
-          "@type": "Person",
-          "name": auditResult.author
-        },
-        "datePublished": selectedPost.date,
-        "dateModified": selectedPost.date,
-        "url": auditResult.url,
-        "mainEntityOfPage": {
-          "@type": "WebPage",
-          "@id": auditResult.url
-        },
-        "publisher": {
-          "@type": "Organization",
-          "name": selectedIntegration.domain,
-          "url": selectedIntegration.domain
-        },
-        // Add image if available
-        "image": {
-          "@type": "ImageObject",
-          "url": `${selectedIntegration.domain}/wp-content/uploads/default-image.jpg`,
-          "width": 1200,
-          "height": 630
-        }
-      };
+      // Use the generated schema from audit result
+      const optimizedSchema = auditResult.generatedSchema || generateOptimizedSchema(selectedPost, auditResult);
 
       // Prepare API request
       const apiDomain = selectedIntegration.domain;
@@ -212,7 +242,7 @@ export const WordPressPostAudit: React.FC = () => {
 
       if (existingAudit) {
         // Use existing audit result
-        const mockResult: AuditResult = {
+        const generatedSchema = generateOptimizedSchema(post, {
           url: post.link,
           title: post.title.rendered,
           description: post.excerpt.rendered.replace(/<[^>]*>/g, '').substring(0, 200),
@@ -224,6 +254,21 @@ export const WordPressPostAudit: React.FC = () => {
           issues: existingAudit.issues,
           seoScore: existingAudit.score,
           recommendations: existingAudit.suggestions
+        });
+        
+        const mockResult: AuditResult = {
+          url: post.link,
+          title: post.title.rendered,
+          description: post.excerpt.rendered.replace(/<[^>]*>/g, '').substring(0, 200),
+          author: `Author ${post.author}`,
+          publishDate: new Date(post.date).toLocaleDateString(),
+          categories: ['Technology', 'Web Development'],
+          tags: ['SEO', 'WordPress', 'Schema'],
+          schemas: existingAudit.schemas_found,
+          issues: existingAudit.issues,
+          seoScore: existingAudit.score,
+          recommendations: existingAudit.suggestions,
+          generatedSchema
         };
         setAuditResult(mockResult);
       } else {
@@ -269,7 +314,20 @@ export const WordPressPostAudit: React.FC = () => {
             "Include mainEntityOfPage property in Article schema",
             "Consider adding FAQ schema if applicable",
             "Add Person schema for author information"
-          ]
+          ],
+          generatedSchema: generateOptimizedSchema(post, {
+            url: post.link,
+            title: post.title.rendered,
+            description: post.excerpt.rendered.replace(/<[^>]*>/g, '').substring(0, 200),
+            author: `Author ${post.author}`,
+            publishDate: new Date(post.date).toLocaleDateString(),
+            categories: ['Technology', 'Web Development'],
+            tags: ['SEO', 'WordPress', 'Schema'],
+            schemas: [],
+            issues: [],
+            seoScore: 0,
+            recommendations: []
+          })
         };
 
         setAuditResult(mockResult);
@@ -626,6 +684,47 @@ export const WordPressPostAudit: React.FC = () => {
                     </div>
                   </div>
 
+                  {/* Generated Schema Display */}
+                  {auditResult.generatedSchema && (
+                    <div className="bg-white border border-gray-200 rounded-lg">
+                      <div className="bg-green-50 px-6 py-4 border-b border-green-200">
+                        <div className="flex items-center justify-between">
+                          <h4 className="text-lg font-semibold text-gray-900 flex items-center">
+                            <CheckCircle className="w-5 h-5 text-green-500 mr-2" />
+                            Generated Optimized Schema
+                          </h4>
+                          <button
+                            onClick={copySchemaToClipboard}
+                            className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center space-x-2"
+                          >
+                            {copiedSchema ? (
+                              <Check className="w-4 h-4" />
+                            ) : (
+                              <Copy className="w-4 h-4" />
+                            )}
+                            <span>{copiedSchema ? 'Copied!' : 'Copy Schema'}</span>
+                          </button>
+                        </div>
+                      </div>
+                      <div className="p-6">
+                        <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                          <pre className="text-sm text-gray-800 overflow-x-auto whitespace-pre-wrap font-mono">
+                            {JSON.stringify(auditResult.generatedSchema, null, 2)}
+                          </pre>
+                        </div>
+                        <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                          <h5 className="font-medium text-blue-900 mb-2">Schema Benefits:</h5>
+                          <ul className="text-sm text-blue-800 space-y-1">
+                            <li>• Includes all required Article schema properties</li>
+                            <li>• Adds mainEntityOfPage for better page understanding</li>
+                            <li>• Includes structured author and publisher information</li>
+                            <li>• Provides image metadata for rich snippets</li>
+                            <li>• Optimized for search engine visibility</li>
+                          </ul>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                   {/* Schema Analysis Results */}
                   <div className="bg-white border border-gray-200 rounded-lg">
                     <div className="bg-gray-50 px-6 py-4 border-b border-gray-200">
