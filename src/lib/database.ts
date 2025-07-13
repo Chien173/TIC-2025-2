@@ -65,6 +65,28 @@ export interface SchemaPublication {
   deleted_by?: string
 }
 
+export interface PostAudit {
+  id: string
+  website_id?: string
+  wordpress_integration_id: string
+  post_id: string
+  post_title: string
+  post_url: string
+  schemas_found: any[]
+  issues: string[]
+  suggestions: string[]
+  score: number
+  audit_data: any
+  created_at: string
+  updated_at: string
+  deleted_at?: string
+  created_by: string
+  updated_by?: string
+  deleted_by?: string
+  website?: Website
+  wordpress_integration?: WordPressIntegration
+}
+
 // Website operations
 export const websiteService = {
   async create(data: Partial<Website>) {
@@ -336,5 +358,98 @@ export const publicationService = {
 
     if (error) throw error
     return data
+  }
+}
+
+// Post audit operations
+export const postAuditService = {
+  async create(data: Partial<PostAudit>) {
+    const userId = (await supabase.auth.getUser()).data.user?.id
+    
+    const { data: result, error } = await supabase
+      .from('post_audits')
+      .insert({
+        ...data,
+        created_by: userId
+      })
+      .select(`
+        *,
+        website:websites(*),
+        wordpress_integration:wordpress_integrations(*)
+      `)
+      .single()
+
+    if (error) throw error
+    return result
+  },
+
+  async update(id: string, data: Partial<PostAudit>) {
+    const userId = (await supabase.auth.getUser()).data.user?.id
+    
+    const { data: result, error } = await supabase
+      .from('post_audits')
+      .update({
+        ...data,
+        updated_by: userId
+      })
+      .eq('id', id)
+      .select(`
+        *,
+        website:websites(*),
+        wordpress_integration:wordpress_integrations(*)
+      `)
+      .single()
+
+    if (error) throw error
+    return result
+  },
+
+  async getAll() {
+    const { data, error } = await supabase
+      .from('post_audits')
+      .select(`
+        *,
+        website:websites(*),
+        wordpress_integration:wordpress_integrations(*)
+      `)
+      .is('deleted_at', null)
+      .order('created_at', { ascending: false })
+
+    if (error) throw error
+    return data
+  },
+
+  async getByIntegrationId(integrationId: string) {
+    const { data, error } = await supabase
+      .from('post_audits')
+      .select(`
+        *,
+        website:websites(*),
+        wordpress_integration:wordpress_integrations(*)
+      `)
+      .eq('wordpress_integration_id', integrationId)
+      .is('deleted_at', null)
+      .order('created_at', { ascending: false })
+
+    if (error) throw error
+    return data
+  },
+
+  async getByPostId(integrationId: string, postId: string) {
+    const { data, error } = await supabase
+      .from('post_audits')
+      .select(`
+        *,
+        website:websites(*),
+        wordpress_integration:wordpress_integrations(*)
+      `)
+      .eq('wordpress_integration_id', integrationId)
+      .eq('post_id', postId)
+      .is('deleted_at', null)
+      .order('created_at', { ascending: false })
+      .limit(1)
+
+    if (error) throw error
+    return data[0] || null
   }
 }

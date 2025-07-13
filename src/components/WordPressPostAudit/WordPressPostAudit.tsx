@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
-import { ArrowLeft, FileText, Search, CheckCircle, AlertTriangle, Zap, Upload, ExternalLink } from 'lucide-react'
-import { wordpressService, WordPressIntegration as IWordPressIntegration } from '../../lib/database'
+import { ArrowLeft, FileText, Search, CheckCircle, AlertTriangle, Zap, Upload, ExternalLink, Clock, RefreshCw } from 'lucide-react'
+import { wordpressService, postAuditService, WordPressIntegration as IWordPressIntegration, PostAudit as IPostAudit } from '../../lib/database'
 
 interface WordPressPost {
   id: number
@@ -28,9 +28,11 @@ export const WordPressPostAudit: React.FC = () => {
   const [posts, setPosts] = useState<WordPressPost[]>([])
   const [selectedPost, setSelectedPost] = useState<WordPressPost | null>(null)
   const [auditResult, setAuditResult] = useState<PostAuditResult | null>(null)
+  const [auditHistory, setAuditHistory] = useState<IPostAudit[]>([])
   const [loading, setLoading] = useState(false)
   const [postsLoading, setPostsLoading] = useState(false)
   const [publishLoading, setPublishLoading] = useState(false)
+  const [savingAudit, setSavingAudit] = useState(false)
 
   useEffect(() => {
     loadIntegrations()
@@ -67,6 +69,9 @@ export const WordPressPostAudit: React.FC = () => {
       if (response.ok) {
         const postsData = await response.json()
         setPosts(postsData)
+        
+        // Load audit history for this integration
+        await loadAuditHistory(integration.id)
       } else {
         throw new Error('Failed to load posts')
       }
@@ -75,6 +80,15 @@ export const WordPressPostAudit: React.FC = () => {
       alert('Failed to load WordPress posts. Please check your connection.')
     } finally {
       setPostsLoading(false)
+    }
+  }
+
+  const loadAuditHistory = async (integrationId: string) => {
+    try {
+      const audits = await postAuditService.getByIntegrationId(integrationId)
+      setAuditHistory(audits)
+    } catch (error) {
+      console.error('Error loading audit history:', error)
     }
   }
 
@@ -145,10 +159,69 @@ export const WordPressPostAudit: React.FC = () => {
         suggestions,
         score
       })
+      
+      // Auto-save audit result
+      await saveAuditResult(post, schemas, issues, suggestions, score)
     } catch (error) {
       console.error('Error auditing post:', error)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const saveAuditResult = async (
+    post: WordPressPost, 
+    schemas: any[], 
+    issues: string[], 
+    suggestions: string[], 
+    score: number
+  ) => {
+    if (!selectedIntegration) return
+    
+    setSavingAudit(true)
+    try {
+      // Check if audit already exists for this post
+      const existingAudit = await postAuditService.getByPostId(selectedIntegration.id, post.id.toString())
+      
+      if (existingAudit) {
+        // Update existing audit
+        await postAuditService.update(existingAudit.id, {
+          schemas_found: schemas,
+          issues,
+          suggestions,
+          score,
+          audit_data: {
+            analyzed_at: new Date().toISOString(),
+            post_content_length: post.content.rendered.length,
+            post_excerpt: post.excerpt.rendered
+          }
+        })
+      } else {
+        // Create new audit
+        await postAuditService.create({
+          website_id: selectedIntegration.website_id,
+          wordpress_integration_id: selectedIntegration.id,
+          post_id: post.id.toString(),
+          post_title: post.title.rendered,
+          post_url: post.link,
+          schemas_found: schemas,
+          issues,
+          suggestions,
+          score,
+          audit_data: {
+            analyzed_at: new Date().toISOString(),
+            post_content_length: post.content.rendered.length,
+            post_excerpt: post.excerpt.rendered
+          }
+        })
+      }
+      
+      // Refresh audit history
+      await loadAuditHistory(selectedIntegration.id)
+    } catch (error) {
+      console.error('Error saving audit result:', error)
+    } finally {
+      setSavingAudit(false)
     }
   }
 
@@ -183,8 +256,9 @@ export const WordPressPostAudit: React.FC = () => {
         }
       }
       
-      // Call the custom API endpoint
-      const response = await fetch(`https://wordpress.dev.teko.vn/wp-json/custom-schema-connector/v1/schema/${selectedIntegration.website?.id || selectedIntegration.id}`, {
+      // Call the custom API endpoint with correct website_id
+      const websiteId = selectedIntegration.website_id || selectedIntegration.website?.id
+      const response = await fetch(`https://wordpress.dev.teko.vn/wp-json/custom-schema-connector/v1/schema/${websiteId}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -216,7 +290,18 @@ export const WordPressPostAudit: React.FC = () => {
     setSelectedPost(null)
     setAuditResult(null)
     setPosts([])
+    setAuditHistory([])
     loadPosts(integration)
+  }
+
+  const getPostAuditStatus = (postId: number) => {
+    return auditHistory.find(audit => audit.post_id === postId.toString())
+  }
+
+  const refreshPosts = () => {
+    if (selectedIntegration) {
+      loadPosts(selectedIntegration)
+    }
   }
 
   return (
@@ -274,9 +359,19 @@ export const WordPressPostAudit: React.FC = () => {
 
           {selectedIntegration && (
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">
-                Posts from {selectedIntegration.domain}
-              </h3>
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold text-gray-900">
+                  Posts from {selectedIntegration.domain}
+                </h3>
+                <button
+                  onClick={refreshPosts}
+                  disabled={postsLoading}
+                  className="flex items-center space-x-2 px-3 py-2 text-sm bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 disabled:opacity-50 transition-colors"
+                >
+                  <RefreshCw className={`w-4 h-4 ${postsLoading ? 'animate-spin' : ''}`} />
+                  <span>Refresh</span>
+                </button>
+              </div>
               
               {postsLoading ? (
                 <div className="text-center py-8">
@@ -291,6 +386,7 @@ export const WordPressPostAudit: React.FC = () => {
               ) : (
                 <div className="space-y-3">
                   {posts.map((post) => (
+                    const auditStatus = getPostAuditStatus(post.id)
                     <div
                       key={post.id}
                       className={`p-4 rounded-lg border-2 transition-all ${
@@ -300,9 +396,24 @@ export const WordPressPostAudit: React.FC = () => {
                       }`}
                     >
                       <div className="flex items-center justify-between">
+                              {auditStatus && (
+                                <div className="flex items-center space-x-1">
+                                  <CheckCircle className="w-4 h-4 text-green-500" />
+                                  <span className={`text-xs font-medium px-2 py-1 rounded-full ${
+                                    auditStatus.score >= 80 ? 'bg-green-100 text-green-800' :
+                                    auditStatus.score >= 60 ? 'bg-yellow-100 text-yellow-800' :
+                                    'bg-red-100 text-red-800'
+                                  }`}>
+                                    Score: {auditStatus.score}
+                                  </span>
+                                </div>
+                              )}
                         <div className="flex-1">
                           <h4 className="font-medium text-gray-900" dangerouslySetInnerHTML={{ __html: post.title.rendered }} />
-                          <div className="text-sm text-gray-600 mt-1">
+                              Published: {new Date(post.date).toLocaleDateString()}
+                              {auditStatus && (
+                                <> • Last audited: {new Date(auditStatus.created_at).toLocaleDateString()}</>
+                              )}
                             Published: {new Date(post.date).toLocaleDateString()}
                           </div>
                           <div className="text-xs text-gray-500 mt-1">
@@ -311,20 +422,70 @@ export const WordPressPostAudit: React.FC = () => {
                               View Post
                             </a>
                           </div>
-                        </div>
-                        <button
-                          onClick={() => auditPost(post)}
-                          disabled={loading}
-                          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2 transition-all"
-                        >
-                          <Search className="w-4 h-4" />
-                          <span>{loading && selectedPost?.id === post.id ? 'Auditing...' : 'Audit'}</span>
+                          <div className="flex items-center space-x-2">
+                            {savingAudit && selectedPost?.id === post.id && (
+                              <div className="flex items-center space-x-1 text-xs text-gray-500">
+                                <Clock className="w-3 h-3 animate-spin" />
+                                <span>Saving...</span>
+                              </div>
+                            )}
+                            <button
+                              onClick={() => auditPost(post)}
+                              disabled={loading}
+                              className={`px-4 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2 transition-all ${
+                                auditStatus ? 'bg-green-600 text-white' : 'bg-blue-600 text-white'
+                              }`}
+                            >
+                              <Search className="w-4 h-4" />
+                              <span>
+                                {loading && selectedPost?.id === post.id ? 'Auditing...' : 
+                                 auditStatus ? 'Re-audit' : 'Audit'}
+                              </span>
+                            </button>
+                          </div>
                         </button>
                       </div>
-                    </div>
+                    )}
                   ))}
                 </div>
               )}
+            </div>
+          )}
+
+          {auditHistory.length > 0 && (
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">Recent Audits</h3>
+              <div className="space-y-3">
+                {auditHistory.slice(0, 10).map((audit) => (
+                  <div key={audit.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                    <div className="flex-1">
+                      <div className="font-medium text-gray-900" dangerouslySetInnerHTML={{ __html: audit.post_title }} />
+                      <div className="text-sm text-gray-600">
+                        Audited: {new Date(audit.created_at).toLocaleDateString()} • 
+                        {audit.schemas_found.length} schemas • 
+                        {audit.issues.length} issues
+                      </div>
+                    </div>
+                    <div className="flex items-center space-x-3">
+                      <div className={`text-lg font-bold ${
+                        audit.score >= 80 ? 'text-green-600' : 
+                        audit.score >= 60 ? 'text-yellow-600' : 'text-red-600'
+                      }`}>
+                        {audit.score}
+                      </div>
+                      <a
+                        href={audit.post_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-blue-600 hover:text-blue-700 text-sm font-medium flex items-center"
+                      >
+                        <ExternalLink className="w-3 h-3 mr-1" />
+                        View
+                      </a>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
 
