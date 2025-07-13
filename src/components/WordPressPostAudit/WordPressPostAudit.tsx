@@ -172,6 +172,8 @@ export const WordPressPostAudit: React.FC = () => {
   const publishSchemaToWordPress = async () => {
     if (!selectedIntegration || !selectedPost || !auditResult) return;
 
+    trackPublishSchema(selectedIntegration.domain, selectedPost.id.toString());
+
     setPublishLoading(true);
     try {
       // Use the generated schema from audit result
@@ -206,9 +208,6 @@ export const WordPressPostAudit: React.FC = () => {
 
       if (response.ok) {
         const result = await response.json();
-        
-        // Track successful publish
-        trackPublishSchema(selectedIntegration.domain, selectedPost.id.toString());
         
         alert(`Schema successfully published to WordPress post! Response: ${JSON.stringify(result)}`);
       } else {
