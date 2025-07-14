@@ -49,7 +49,7 @@ const wordpressApi = {
 
     // Call WordPress API to get posts
     const response = await fetch(
-      `${domain}/wp-json/wp/v2/posts?per_page=20&status=publish`,
+      `/wp-json/wp/v2/posts?per_page=20&status=publish`,
       {
         headers: {
           Authorization: `Basic ${auth}`,
