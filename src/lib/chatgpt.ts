@@ -79,7 +79,7 @@ Hãy phân tích thực tế và trả về JSON hợp lệ.`;
           'Authorization': `Bearer ${CHATGPT_API_KEY}`,
         },
         body: JSON.stringify({
-          model: 'gpt-4',
+          model: 'gpt-4o-mini',
           messages: [
             {
               role: 'system',
