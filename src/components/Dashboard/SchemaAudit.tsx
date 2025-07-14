@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useLanguage } from "../../contexts/LanguageContext";
 import { useTracking } from "../../hooks/useTracking";
+import { chatGPTService } from "../../lib/chatgpt";
 import {
   Search,
   ExternalLink,
@@ -57,33 +58,42 @@ const SchemaAudit: React.FC<SchemaAuditProps> = ({ onStatsUpdate }) => {
 
     setLoading(true);
     try {
-      // Simulate API call for demo - in production, this would call a real schema analysis service
-      await new Promise((resolve) => setTimeout(resolve, 2000));
+      // Use ChatGPT to analyze the website
+      const analysis = await chatGPTService.analyzeWebsiteForGEO(url);
 
-      // Mock result based on URL analysis
       const mockResult: SchemaResult = {
         url,
-        schemas: [
-          { "@type": "Organization", name: "Example Company", url: url },
-          { "@type": "WebSite", name: "Example Website", url: url },
-        ],
-        issues: [
-          "Missing breadcrumb schema for better navigation understanding",
-          "Product schema lacks aggregateRating property",
-          "Article schema missing dateModified for content freshness",
-        ],
-        suggestions: [
-          "Add LocalBusiness schema for improved local GEO visibility",
-          "Implement FAQ schema to enhance search result snippets",
-          "Add Review schema to build trust and credibility",
-          "Include Person schema for author information and E-A-T",
-        ],
-        score: Math.floor(Math.random() * 40) + 60, // Random score between 60-100
+        schemas: analysis.geoSchemas.map(schema => ({
+          "@type": schema.type,
+          ...schema.properties
+        })),
+        issues: analysis.issues,
+        suggestions: analysis.improvements,
+        score: analysis.score,
       };
 
       setResult(mockResult);
     } catch (error) {
       console.error("Error analyzing schema:", error);
+      
+      // Fallback to basic analysis if ChatGPT fails
+      const fallbackResult: SchemaResult = {
+        url,
+        schemas: [
+          { "@type": "Organization", name: "Website Organization", url: url },
+        ],
+        issues: [
+          "Không thể kết nối với ChatGPT API để phân tích chi tiết",
+          "Vui lòng kiểm tra lại kết nối mạng",
+        ],
+        suggestions: [
+          "Thêm schema LocalBusiness cho SEO địa phương",
+          "Bổ sung thông tin địa chỉ và liên hệ",
+          "Tối ưu hóa structured data theo chuẩn schema.org",
+        ],
+        score: 50,
+      };
+      setResult(fallbackResult);
     } finally {
       setLoading(false);
     }
@@ -94,23 +104,32 @@ const SchemaAudit: React.FC<SchemaAuditProps> = ({ onStatsUpdate }) => {
 
     setLoading(true);
     try {
-      // Simulate AI processing
-      await new Promise((resolve) => setTimeout(resolve, 1500));
+      // Use ChatGPT to generate new suggestions
+      const analysis = await chatGPTService.analyzeWebsiteForGEO(result.url);
 
-      const aiSuggestions = [
-        `Based on ${result.url}, add Product schema with price and availability information`,
-        "Implement Organization schema with complete social media profiles",
-        "Add Person schema for author information to improve E-A-T signals",
-        "Include WebPage schema with breadcrumb navigation for better page understanding",
-        "Add Review and Rating schemas to enhance trust signals",
-        "Implement Event schema if your site promotes events or webinars",
-      ];
+      const aiSuggestions = analysis.improvements;
+
+      console.log(aiSuggestions);
 
       setResult((prev) =>
         prev ? { ...prev, suggestions: aiSuggestions } : null
       );
     } catch (error) {
       console.error("Error generating AI suggestions:", error);
+      
+      // Fallback suggestions if ChatGPT fails
+      const fallbackSuggestions = [
+        "Thêm schema LocalBusiness với thông tin đầy đủ về doanh nghiệp",
+        "Bổ sung PostalAddress với địa chỉ cụ thể và mã bưu điện",
+        "Thêm GeoCoordinates để xác định vị trí chính xác",
+        "Cập nhật openingHours cho giờ hoạt động của doanh nghiệp",
+        "Thêm thông tin liên hệ: telephone, email, website",
+        "Tối ưu hóa schema Organization với thông tin đầy đủ"
+      ];
+      
+      setResult((prev) =>
+        prev ? { ...prev, suggestions: fallbackSuggestions } : null
+      );
     } finally {
       setLoading(false);
     }
