@@ -238,25 +238,25 @@ export const AuditResultModal: React.FC<AuditResultModalProps> = ({
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                   <div className="text-center">
                     <div className="text-2xl font-bold text-blue-600">
-                      {auditResult.schemas.length}
+                      {auditResult.schemas?.length || 0}
                     </div>
                     <div className="text-sm text-gray-600">Items Detected</div>
                   </div>
                   <div className="text-center">
                     <div className="text-2xl font-bold text-red-600">
-                      {auditResult.issues.length}
+                      {auditResult.issues?.length || 0}
                     </div>
                     <div className="text-sm text-gray-600">Errors</div>
                   </div>
                   <div className="text-center">
                     <div className="text-2xl font-bold text-yellow-600">
-                      {auditResult.schemas.filter(s => s.status === 'warning').length}
+                      {auditResult.schemas?.filter(s => s.status === 'warning').length || 0}
                     </div>
                     <div className="text-sm text-gray-600">Warnings</div>
                   </div>
                   <div className="text-center">
                     <div className="text-2xl font-bold text-green-600">
-                      {auditResult.seoScore}%
+                      {auditResult.seoScore || 0}%
                     </div>
                     <div className="text-sm text-gray-600">GEO Score</div>
                   </div>
@@ -264,11 +264,11 @@ export const AuditResultModal: React.FC<AuditResultModalProps> = ({
               </div>
 
               {/* Schema Items */}
-              {auditResult.schemas.length > 0 && (
+              {auditResult.schemas && auditResult.schemas.length > 0 && (
                 <div className="p-6 border-b border-gray-200">
                   <h5 className="font-semibold text-gray-900 flex items-center mb-4">
                     <CheckCircle className="w-5 h-5 text-green-500 mr-2" />
-                    Detected Schemas ({auditResult.schemas.length})
+                    Detected Schemas ({auditResult.schemas?.length || 0})
                   </h5>
                   <div className="space-y-4 max-h-60 overflow-y-auto">
                     {auditResult.schemas.map((schema, index) => (
@@ -326,11 +326,11 @@ export const AuditResultModal: React.FC<AuditResultModalProps> = ({
               )}
 
               {/* Errors */}
-              {auditResult.issues.length > 0 && (
+              {auditResult.issues && auditResult.issues.length > 0 && (
                 <div className="p-6 border-b border-gray-200">
                   <h5 className="font-semibold text-gray-900 flex items-center mb-4">
                     <AlertTriangle className="w-5 h-5 text-red-500 mr-2" />
-                    Errors ({auditResult.issues.length})
+                    Errors ({auditResult.issues?.length || 0})
                   </h5>
                   <div className="space-y-3 max-h-40 overflow-y-auto">
                     {auditResult.issues.map((issue, index) => (
@@ -358,11 +358,11 @@ export const AuditResultModal: React.FC<AuditResultModalProps> = ({
               )}
 
               {/* Recommendations */}
-              {auditResult.recommendations.length > 0 && (
+              {auditResult.recommendations && auditResult.recommendations.length > 0 && (
                 <div className="p-6">
                   <h5 className="font-semibold text-gray-900 flex items-center mb-4">
                     <CheckCircle className="w-5 h-5 text-blue-500 mr-2" />
-                    Recommendations ({auditResult.recommendations.length})
+                    Recommendations ({auditResult.recommendations?.length || 0})
                   </h5>
                   <div className="space-y-3 max-h-40 overflow-y-auto">
                     {auditResult.recommendations.map((recommendation, index) => (

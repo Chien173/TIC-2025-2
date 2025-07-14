@@ -20,7 +20,7 @@ interface AuditAnalysis {
 }
 
 // Get API key from environment variable for security
-const CHATGPT_API_KEY = import.meta.env.VITE_CHATGPT_API_KEY || '';
+const CHATGPT_API_KEY = import.meta.env.VITE_CHATGPT_API_KEY;
 
 
 export const chatGPTService = {
@@ -79,7 +79,7 @@ Hãy phân tích thực tế và trả về JSON hợp lệ.`;
           'Authorization': `Bearer ${CHATGPT_API_KEY}`,
         },
         body: JSON.stringify({
-          model: 'gpt-4o-mini',
+          model: 'gpt-4',
           messages: [
             {
               role: 'system',
@@ -109,6 +109,12 @@ Hãy phân tích thực tế và trả về JSON hợp lệ.`;
       // Parse JSON response from ChatGPT
       try {
         const analysis: AuditAnalysis = JSON.parse(content);
+        
+        // Validate the analysis structure
+        if (!analysis.schemaStatus || !Array.isArray(analysis.geoSchemas)) {
+          throw new Error('Invalid analysis structure from ChatGPT');
+        }
+        
         return analysis;
       } catch (parseError) {
         console.error('Failed to parse ChatGPT response as JSON:', content);
@@ -200,6 +206,12 @@ Trả kết quả theo định dạng JSON:
 
       try {
         const analysis: AuditAnalysis = JSON.parse(content);
+        
+        // Validate the analysis structure
+        if (!analysis.schemaStatus || !Array.isArray(analysis.geoSchemas)) {
+          throw new Error('Invalid analysis structure from ChatGPT');
+        }
+        
         return analysis;
       } catch (parseError) {
         console.error('Failed to parse ChatGPT response as JSON:', content);
@@ -213,14 +225,18 @@ Trả kết quả theo định dạng JSON:
 
   parseTextResponse(content: string, url: string): AuditAnalysis {
     // Parse text response and extract information
-    const hasSchema = content.toLowerCase().includes('có') || content.toLowerCase().includes('tồn tại');
-    const hasIssues = content.toLowerCase().includes('thiếu') || content.toLowerCase().includes('lỗi');
+    const hasSchema = content.toLowerCase().includes('có') || 
+                     content.toLowerCase().includes('tồn tại') ||
+                     content.toLowerCase().includes('schema');
+    const hasIssues = content.toLowerCase().includes('thiếu') || 
+                     content.toLowerCase().includes('lỗi') ||
+                     content.toLowerCase().includes('missing');
     
     return {
       schemaStatus: hasSchema ? 'Một phần' : 'Không',
       detailedInfo: [
-        'Phân tích được thực hiện bởi ChatGPT',
-        'Kết quả dựa trên nội dung phản hồi từ AI'
+        'Phân tích dựa trên nội dung phản hồi từ ChatGPT',
+        'Kết quả được xử lý từ text response'
       ],
       improvements: [
         'Thêm schema LocalBusiness cho thông tin doanh nghiệp',
@@ -230,7 +246,7 @@ Trả kết quả theo định dạng JSON:
       geoSchemas: [
         {
           type: 'Organization',
-          status: hasSchema ? 'warning' : 'invalid',
+          status: hasSchema ? 'warning' as const : 'invalid' as const,
           properties: {
             name: 'Website Name',
             url: url
@@ -264,7 +280,7 @@ Trả kết quả theo định dạng JSON:
       geoSchemas: [
         {
           type: 'Organization',
-          status: 'warning',
+          status: 'warning' as const,
           properties: {
             name: 'Website Organization',
             url: url,

@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import { useLanguage } from "../../contexts/LanguageContext";
 import { useTracking } from "../../hooks/useTracking";
+import { chatGPTService } from "../../lib/chatgpt";
 import { wordpressService, postAuditService, WordPressIntegration, PostAudit } from "../../lib/database";
 import wordpressApi, { WordPressPost } from "../../lib/wordpress";
 import { AuditResultModal } from "./AuditResultModal";
@@ -235,117 +236,60 @@ export const WordPressPostAudit: React.FC = () => {
       // Track the audit action
       trackPostAudit(post.id.toString(), post.title.rendered);
 
-      // Check if audit already exists
+      // Always use ChatGPT to analyze the WordPress post (fresh analysis)
+      console.log('🤖 Starting ChatGPT analysis for post:', post.title.rendered);
+      
+      const analysis = await chatGPTService.analyzeWordPressPost(
+        post.link,
+        post.title.rendered,
+        post.content.rendered
+      );
+      
+      console.log('✅ ChatGPT analysis completed:', analysis);
+      
+      // Create base audit result data
+      const baseAuditData = {
+        url: post.link,
+        title: post.title.rendered,
+        description: post.excerpt.rendered.replace(/<[^>]*>/g, '').substring(0, 200),
+        author: `Author ${post.author}`,
+        publishDate: new Date(post.date).toLocaleDateString(),
+        categories: ['Technology', 'Web Development'],
+        tags: ['GEO', 'WordPress', 'Schema'],
+        schemas: analysis.geoSchemas || [],
+        issues: analysis.issues || [],
+        seoScore: analysis.score || 50,
+        recommendations: analysis.improvements || []
+      };
+      
+      // Generate optimized schema
+      const generatedSchema = generateOptimizedSchema(post, baseAuditData);
+      
+      // Create final result with generated schema
+      const auditResult: AuditResult = {
+        ...baseAuditData,
+        generatedSchema
+      };
+
+      setAuditResult(auditResult);
+
+      // Save or update audit result in database
       const existingAudit = await postAuditService.getByPostId(
         selectedIntegration.id, 
         post.id.toString()
       );
 
       if (existingAudit) {
-        // Use existing audit result
-        const generatedSchema = generateOptimizedSchema(post, {
-          url: post.link,
-          title: post.title.rendered,
-          description: post.excerpt.rendered.replace(/<[^>]*>/g, '').substring(0, 200),
-          author: `Author ${post.author}`,
-          publishDate: new Date(post.date).toLocaleDateString(),
-          categories: ['Technology', 'Web Development'],
-          tags: ['GEO', 'WordPress', 'Schema'],
-          schemas: existingAudit.schemas_found,
-          issues: existingAudit.issues,
-          seoScore: existingAudit.score,
-          recommendations: existingAudit.suggestions
-        });
-        
-        const mockResult: AuditResult = {
-          url: post.link,
-          title: post.title.rendered,
-          description: post.excerpt.rendered.replace(/<[^>]*>/g, '').substring(0, 200),
-          author: `Author ${post.author}`,
-          publishDate: new Date(post.date).toLocaleDateString(),
-          categories: ['Technology', 'Web Development'],
-          tags: ['GEO', 'WordPress', 'Schema'],
-          schemas: existingAudit.schemas_found,
-          issues: existingAudit.issues,
-          seoScore: existingAudit.score,
-          recommendations: existingAudit.suggestions,
-          generatedSchema
-        };
-        setAuditResult(mockResult);
-      } else {
-        // Simulate API call for new audit
-        await new Promise(resolve => setTimeout(resolve, 2000));
-        
-        // Mock result
-        const mockResult: AuditResult = {
-          url: post.link,
-          title: post.title.rendered,
-          description: post.excerpt.rendered.replace(/<[^>]*>/g, '').substring(0, 200),
-          author: `Author ${post.author}`,
-          publishDate: new Date(post.date).toLocaleDateString(),
-          categories: ['Technology', 'Web Development'],
-          tags: ['GEO', 'WordPress', 'Schema'],
-          schemas: [
-            {
-              type: "Article",
-              status: 'valid',
-              properties: {
-                headline: post.title.rendered,
-                author: `Author ${post.author}`,
-                datePublished: post.date,
-                description: post.excerpt.rendered.replace(/<[^>]*>/g, '').substring(0, 100)
-              }
-            },
-            {
-              type: "BreadcrumbList",
-              status: 'warning',
-              properties: {
-                itemListElement: []
-              }
-            }
-          ],
-          issues: [
-            "Missing required property: mainEntityOfPage",
-            "Missing required property: image",
-            "Missing author schema information"
-          ],
-          seoScore: Math.floor(Math.random() * 40) + 60,
-          recommendations: [
-            "Add featured image to improve schema markup",
-            "Include mainEntityOfPage property in Article schema",
-            "Consider adding FAQ schema if applicable",
-            "Add Person schema for author information"
-          ],
-          generatedSchema: generateOptimizedSchema(post, {
-            url: post.link,
-            title: post.title.rendered,
-            description: post.excerpt.rendered.replace(/<[^>]*>/g, '').substring(0, 200),
-            author: `Author ${post.author}`,
-            publishDate: new Date(post.date).toLocaleDateString(),
-            categories: ['Technology', 'Web Development'],
-            tags: ['GEO', 'WordPress', 'Schema'],
-            schemas: [],
-            issues: [],
-            seoScore: 0,
-            recommendations: []
-          })
-        };
-
-        setAuditResult(mockResult);
-
-        // Save audit result
-        await postAuditService.create({
-          website_id: selectedIntegration.website_id,
-          wordpress_integration_id: selectedIntegration.id,
-          post_id: post.id.toString(),
-          post_title: post.title.rendered,
-          post_url: post.link,
-          schemas_found: mockResult.schemas,
-          issues: mockResult.issues,
-          suggestions: mockResult.recommendations,
-          score: mockResult.seoScore,
+        // Update existing audit
+        await postAuditService.update(existingAudit.id, {
+          schemas_found: analysis.geoSchemas || [],
+          issues: analysis.issues || [],
+          suggestions: analysis.improvements || [],
+          score: analysis.score || 50,
           audit_data: {
             analyzed_at: new Date().toISOString(),
+            chatgpt_analysis: true,
+            re_audit: true,
             post_data: {
               excerpt: post.excerpt.rendered,
               content_length: post.content.rendered.length,
@@ -353,14 +297,87 @@ export const WordPressPostAudit: React.FC = () => {
             }
           }
         });
-
-        await loadPostAudits();
+      } else {
+        // Create new audit
+        await postAuditService.create({
+          website_id: selectedIntegration.website_id,
+          wordpress_integration_id: selectedIntegration.id,
+          post_id: post.id.toString(),
+          post_title: post.title.rendered,
+          post_url: post.link,
+          schemas_found: analysis.geoSchemas || [],
+          issues: analysis.issues || [],
+          suggestions: analysis.improvements || [],
+          score: analysis.score || 50,
+          audit_data: {
+            analyzed_at: new Date().toISOString(),
+            chatgpt_analysis: true,
+            post_data: {
+              excerpt: post.excerpt.rendered,
+              content_length: post.content.rendered.length,
+              status: post.status
+            }
+          }
+        });
       }
+
+      await loadPostAudits();
 
       // Show modal after audit is complete
       setShowAuditModal(true);
     } catch (err: any) {
-      setError(err.message || "Failed to audit the post. Please try again.");
+      console.error('Audit error:', err);
+      setError(err.message || "Không thể phân tích bài viết với ChatGPT. Vui lòng thử lại.");
+      
+      // Show fallback result even if ChatGPT fails
+      const fallbackResult: AuditResult = {
+        url: post.link,
+        title: post.title.rendered,
+        description: post.excerpt.rendered.replace(/<[^>]*>/g, '').substring(0, 200),
+        author: `Author ${post.author}`,
+        publishDate: new Date(post.date).toLocaleDateString(),
+        categories: ['Technology', 'Web Development'],
+        tags: ['GEO', 'WordPress', 'Schema'],
+        schemas: [
+          {
+            type: "Article",
+            status: 'warning' as const,
+            properties: {
+              headline: post.title.rendered,
+              author: `Author ${post.author}`,
+              datePublished: post.date
+            }
+          }
+        ],
+        issues: [
+          "Không thể kết nối với ChatGPT API để phân tích chi tiết",
+          "Thiếu thông tin schema cơ bản cho bài viết",
+          "Cần bổ sung structured data"
+        ],
+        seoScore: 45,
+        recommendations: [
+          "Thêm schema Article đầy đủ cho bài viết",
+          "Bổ sung thông tin tác giả (Person schema)",
+          "Thêm hình ảnh đại diện cho bài viết",
+          "Cập nhật thông tin publisher (Organization)"
+        ],
+        generatedSchema: generateOptimizedSchema(post, {
+          url: post.link,
+          title: post.title.rendered,
+          description: post.excerpt.rendered.replace(/<[^>]*>/g, '').substring(0, 200),
+          author: `Author ${post.author}`,
+          publishDate: new Date(post.date).toLocaleDateString(),
+          categories: ['Technology', 'Web Development'],
+          tags: ['GEO', 'WordPress', 'Schema'],
+          schemas: [],
+          issues: [],
+          seoScore: 45,
+          recommendations: []
+        })
+      };
+      
+      setAuditResult(fallbackResult);
+      setShowAuditModal(true);
     } finally {
       setIsLoading(false);
     }
