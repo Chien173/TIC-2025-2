@@ -224,58 +224,154 @@ Trả kết quả theo định dạng JSON:
   },
 
   parseTextResponse(content: string, url: string): AuditAnalysis {
-    // Parse text response and extract information
-    const hasSchema = content.toLowerCase().includes('có') || 
-                     content.toLowerCase().includes('tồn tại') ||
-                     content.toLowerCase().includes('schema');
-    const hasIssues = content.toLowerCase().includes('thiếu') || 
-                     content.toLowerCase().includes('lỗi') ||
-                     content.toLowerCase().includes('missing');
+    // Try to extract JSON from text response first
+    const jsonMatch = content.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      try {
+        const parsedJson = JSON.parse(jsonMatch[0]);
+        if (parsedJson.schemaStatus && Array.isArray(parsedJson.geoSchemas)) {
+          return parsedJson;
+        }
+      } catch (e) {
+        console.log('Failed to parse extracted JSON, falling back to text parsing');
+      }
+    }
+
+    // Fallback: Parse text response and extract information
+    const contentLower = content.toLowerCase();
+    
+    // Determine schema status
+    let schemaStatus: 'Có' | 'Không' | 'Một phần' = 'Không';
+    if (contentLower.includes('có schema') || contentLower.includes('tồn tại schema')) {
+      schemaStatus = 'Có';
+    } else if (contentLower.includes('một phần') || contentLower.includes('thiếu một số')) {
+      schemaStatus = 'Một phần';
+    }
+
+    // Extract schema types mentioned
+    const schemaTypes = [];
+    const mentionedSchemas = [
+      'LocalBusiness', 'Organization', 'Article', 'Person', 
+      'PostalAddress', 'GeoCoordinates', 'Place'
+    ];
+    
+    for (const schemaType of mentionedSchemas) {
+      if (contentLower.includes(schemaType.toLowerCase())) {
+        const status = contentLower.includes(`${schemaType.toLowerCase()} hợp lệ`) || 
+                      contentLower.includes(`${schemaType.toLowerCase()} đúng`) ? 'valid' :
+                      contentLower.includes(`${schemaType.toLowerCase()} thiếu`) ||
+                      contentLower.includes(`${schemaType.toLowerCase()} lỗi`) ? 'invalid' : 'warning';
+        
+        schemaTypes.push({
+          type: schemaType,
+          status: status as 'valid' | 'invalid' | 'warning',
+          properties: {
+            name: `${schemaType} detected`,
+            url: url
+          }
+        });
+      }
+    }
+
+    // Extract issues from text
+    const issues = [];
+    const issuePatterns = [
+      /thiếu ([^.]+)/gi,
+      /missing ([^.]+)/gi,
+      /không có ([^.]+)/gi,
+      /chưa có ([^.]+)/gi
+    ];
+    
+    for (const pattern of issuePatterns) {
+      const matches = content.match(pattern);
+      if (matches) {
+        issues.push(...matches.map(match => match.trim()));
+      }
+    }
+
+    // Extract improvements/suggestions from text
+    const improvements = [];
+    const improvementPatterns = [
+      /nên ([^.]+)/gi,
+      /khuyến nghị ([^.]+)/gi,
+      /cần ([^.]+)/gi,
+      /thêm ([^.]+)/gi,
+      /bổ sung ([^.]+)/gi
+    ];
+    
+    for (const pattern of improvementPatterns) {
+      const matches = content.match(pattern);
+      if (matches) {
+        improvements.push(...matches.map(match => match.trim()));
+      }
+    }
+
+    // Calculate score based on findings
+    let score = 30; // Base score
+    if (schemaTypes.length > 0) score += 20;
+    if (schemaStatus === 'Có') score += 30;
+    else if (schemaStatus === 'Một phần') score += 15;
+    if (issues.length < 3) score += 10;
+    if (improvements.length > 0) score += 10;
+    
+    // Ensure score is within bounds
+    score = Math.min(Math.max(score, 0), 100);
     
     return {
-      schemaStatus: hasSchema ? 'Một phần' : 'Không',
+      schemaStatus,
       detailedInfo: [
-        'Phân tích dựa trên nội dung phản hồi từ ChatGPT',
-        'Kết quả được xử lý từ text response'
+        `Phân tích website: ${url}`,
+        `Trạng thái schema: ${schemaStatus}`,
+        `Số lượng schema phát hiện: ${schemaTypes.length}`,
+        `Số vấn đề tìm thấy: ${issues.length || 0}`,
+        'Kết quả được xử lý từ text response của ChatGPT'
       ],
-      improvements: [
-        'Thêm schema LocalBusiness cho thông tin doanh nghiệp',
-        'Bổ sung thông tin địa chỉ và tọa độ địa lý',
+      improvements: improvements.length > 0 ? improvements.slice(0, 6) : [
+        'Thêm schema LocalBusiness cho SEO địa phương',
+        'Bổ sung thông tin PostalAddress đầy đủ',
+        'Thêm GeoCoordinates với latitude và longitude',
+        'Cập nhật openingHours cho giờ hoạt động',
+        'Bổ sung thông tin liên hệ: telephone, email',
         'Tối ưu hóa structured data theo chuẩn schema.org'
       ],
-      geoSchemas: [
+      geoSchemas: schemaTypes.length > 0 ? schemaTypes : [
         {
           type: 'Organization',
-          status: hasSchema ? 'warning' as const : 'invalid' as const,
+          status: 'warning' as const,
           properties: {
-            name: 'Website Name',
-            url: url
+            name: 'Website Organization',
+            url: url,
+            description: 'Schema cơ bản được phát hiện'
           }
         }
       ],
-      issues: hasIssues ? [
-        'Thiếu schema LocalBusiness',
-        'Chưa có thông tin địa chỉ cụ thể',
-        'Thiếu tọa độ địa lý (latitude, longitude)'
-      ] : [],
-      score: hasSchema ? 65 : 35
+      issues: issues.length > 0 ? issues.slice(0, 5) : [
+        'Thiếu schema LocalBusiness cho SEO địa phương',
+        'Chưa có thông tin địa chỉ PostalAddress',
+        'Thiếu tọa độ địa lý GeoCoordinates',
+        'Chưa khai báo giờ hoạt động openingHours'
+      ],
+      score
     };
   },
 
   getMockAnalysis(url: string): AuditAnalysis {
     return {
-      schemaStatus: 'Một phần',
+      schemaStatus: 'Một phần' as const,
       detailedInfo: [
-        'Website có một số schema cơ bản',
+        `Phân tích website: ${url}`,
+        'Website có một số schema cơ bản được phát hiện',
         'Thiếu schema GEO quan trọng cho SEO địa phương',
-        'Cần bổ sung thông tin LocalBusiness'
+        'Cần bổ sung thông tin LocalBusiness và PostalAddress',
+        'Kết quả fallback khi không thể kết nối ChatGPT API'
       ],
       improvements: [
         'Thêm schema LocalBusiness với thông tin đầy đủ',
         'Bổ sung PostalAddress với địa chỉ cụ thể',
         'Thêm GeoCoordinates cho vị trí chính xác',
         'Cập nhật openingHours cho giờ hoạt động',
-        'Thêm telephone và email liên hệ'
+        'Thêm telephone và email liên hệ',
+        'Tối ưu hóa schema Organization với logo và mô tả'
       ],
       geoSchemas: [
         {
@@ -284,7 +380,8 @@ Trả kết quả theo định dạng JSON:
           properties: {
             name: 'Website Organization',
             url: url,
-            description: 'Thông tin tổ chức cơ bản'
+            description: 'Thông tin tổ chức cơ bản',
+            '@type': 'Organization'
           }
         }
       ],
