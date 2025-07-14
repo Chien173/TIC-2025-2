@@ -200,7 +200,7 @@ export const WordPressPostAudit: React.FC = () => {
       let response;
       try {
         response = await fetch(
-          `${apiDomain}/wp-json/custom-schema-connector/v1/schema/${postId}`,
+          `/wp-json/custom-schema-connector/v1/schema/${postId}`,
           requestOptions
         );
       } catch (fetchError) {
