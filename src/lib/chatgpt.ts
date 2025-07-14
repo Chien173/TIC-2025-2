@@ -22,6 +22,8 @@ interface AuditAnalysis {
 // Get API key from environment variable for security
 const CHATGPT_API_KEY = import.meta.env.VITE_CHATGPT_API_KEY || '';
 
+console.log(CHATGPT_API_KEY);
+
 export const chatGPTService = {
   async analyzeWebsiteForGEO(url: string): Promise<AuditAnalysis> {
     const prompt = `Tôi muốn bạn đóng vai trò là chuyên gia SEO kỹ thuật và schema markup.
