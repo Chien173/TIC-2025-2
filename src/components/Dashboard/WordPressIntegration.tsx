@@ -208,6 +208,21 @@ const WordPressIntegration: React.FC<WordPressIntegrationProps> = ({
         if (onStatsUpdate) {
           onStatsUpdate();
         }
+
+        // Save publication record to track published schemas
+        try {
+          await publicationService.create({
+            audit_id: null, // This is for direct schema publication, not from audit
+            wordpress_integration_id: selectedIntegration.id,
+            schema_content: schemaMarkup,
+            post_id: post.id.toString(),
+            publication_status: 'published',
+            published_at: new Date().toISOString()
+          });
+        } catch (pubError) {
+          console.error('Failed to save publication record:', pubError);
+          // Don't fail the main operation if publication record fails
+        }
       } else {
         const errorText = await response.text();
         throw new Error(`Failed to publish schema: ${errorText}`);

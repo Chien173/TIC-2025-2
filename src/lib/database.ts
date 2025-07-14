@@ -313,10 +313,17 @@ export const wordpressService = {
   },
 
   async getConnectedCount() {
+    const userId = (await supabase.auth.getUser()).data.user?.id
+    
+    if (!userId) {
+      throw new Error('User not authenticated')
+    }
+    
     const { data, error } = await supabase
       .from('wordpress_integrations')
       .select('id')
       .eq('connection_status', 'connected')
+      .eq('created_by', userId)
       .is('deleted_at', null)
 
     if (error) throw error
@@ -324,10 +331,17 @@ export const wordpressService = {
   },
 
   async getPublishedCount() {
+    const userId = (await supabase.auth.getUser()).data.user?.id
+    
+    if (!userId) {
+      throw new Error('User not authenticated')
+    }
+    
     const { data, error } = await supabase
       .from('schema_publications')
       .select('id')
       .eq('publication_status', 'published')
+      .eq('created_by', userId)
       .is('deleted_at', null)
 
     if (error) throw error

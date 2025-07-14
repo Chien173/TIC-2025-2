@@ -212,7 +212,26 @@ export const WordPressPostAudit: React.FC = () => {
       if (response.ok) {
         const result = await response.json();
         
+        // Save publication record to track published schemas
+        try {
+          const { publicationService } = await import("../../lib/database");
+          await publicationService.create({
+            audit_id: null, // Could link to post audit if needed
+            wordpress_integration_id: selectedIntegration.id,
+            schema_content: JSON.stringify(optimizedSchema),
+            post_id: selectedPost.id.toString(),
+            publication_status: 'published',
+            published_at: new Date().toISOString()
+          });
+        } catch (pubError) {
+          console.error('Failed to save publication record:', pubError);
+          // Don't fail the main operation if publication record fails
+        }
+
         alert(`Schema successfully published to WordPress post! Response: ${JSON.stringify(result)}`);
+        
+        // Update dashboard stats after successful publication
+        // This will be handled by the parent component's onStatsUpdate if available
       } else {
         const errorText = await response.text();
         throw new Error(`Failed to publish schema: HTTP ${response.status} - ${errorText}`);
