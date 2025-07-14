@@ -248,7 +248,7 @@ export const WordPressPostAudit: React.FC = () => {
           author: `Author ${post.author}`,
           publishDate: new Date(post.date).toLocaleDateString(),
           categories: ['Technology', 'Web Development'],
-          tags: ['SEO', 'WordPress', 'Schema'],
+          tags: ['GEO', 'WordPress', 'Schema'],
           schemas: existingAudit.schemas_found,
           issues: existingAudit.issues,
           seoScore: existingAudit.score,
@@ -262,7 +262,7 @@ export const WordPressPostAudit: React.FC = () => {
           author: `Author ${post.author}`,
           publishDate: new Date(post.date).toLocaleDateString(),
           categories: ['Technology', 'Web Development'],
-          tags: ['SEO', 'WordPress', 'Schema'],
+          tags: ['GEO', 'WordPress', 'Schema'],
           schemas: existingAudit.schemas_found,
           issues: existingAudit.issues,
           seoScore: existingAudit.score,
@@ -282,7 +282,7 @@ export const WordPressPostAudit: React.FC = () => {
           author: `Author ${post.author}`,
           publishDate: new Date(post.date).toLocaleDateString(),
           categories: ['Technology', 'Web Development'],
-          tags: ['SEO', 'WordPress', 'Schema'],
+          tags: ['GEO', 'WordPress', 'Schema'],
           schemas: [
             {
               type: "Article",
@@ -321,7 +321,7 @@ export const WordPressPostAudit: React.FC = () => {
             author: `Author ${post.author}`,
             publishDate: new Date(post.date).toLocaleDateString(),
             categories: ['Technology', 'Web Development'],
-            tags: ['SEO', 'WordPress', 'Schema'],
+            tags: ['GEO', 'WordPress', 'Schema'],
             schemas: [],
             issues: [],
             seoScore: 0,
@@ -757,7 +757,7 @@ export const WordPressPostAudit: React.FC = () => {
                           <div className="text-2xl font-bold text-green-600">
                             {auditResult.seoScore}%
                           </div>
-                          <div className="text-sm text-gray-600">SEO Score</div>
+                          <div className="text-sm text-gray-600">GEO Score</div>
                         </div>
                       </div>
                     </div>

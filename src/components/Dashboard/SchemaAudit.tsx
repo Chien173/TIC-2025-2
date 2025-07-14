@@ -73,7 +73,7 @@ const SchemaAudit: React.FC<SchemaAuditProps> = ({ onStatsUpdate }) => {
           "Article schema missing dateModified for content freshness",
         ],
         suggestions: [
-          "Add LocalBusiness schema for improved local SEO visibility",
+          "Add LocalBusiness schema for improved local GEO visibility",
           "Implement FAQ schema to enhance search result snippets",
           "Add Review schema to build trust and credibility",
           "Include Person schema for author information and E-A-T",
@@ -159,11 +159,9 @@ const SchemaAudit: React.FC<SchemaAuditProps> = ({ onStatsUpdate }) => {
     <div className="space-y-6">
       <div className="mb-6">
         <h2 className="text-xl font-semibold text-gray-900 mb-2">
-          {t('schemaAudit.title')}
+          {t("schemaAudit.title")}
         </h2>
-        <p className="text-gray-600">
-          {t('schemaAudit.description')}
-        </p>
+        <p className="text-gray-600">{t("schemaAudit.description")}</p>
       </div>
 
       <div className="mb-6">
@@ -173,7 +171,7 @@ const SchemaAudit: React.FC<SchemaAuditProps> = ({ onStatsUpdate }) => {
               type="url"
               value={url}
               onChange={(e) => setUrl(e.target.value)}
-              placeholder={t('schemaAudit.placeholder')}
+              placeholder={t("schemaAudit.placeholder")}
               className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             />
           </div>
@@ -183,7 +181,9 @@ const SchemaAudit: React.FC<SchemaAuditProps> = ({ onStatsUpdate }) => {
             className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2 font-medium transition-all"
           >
             <Search className="w-4 h-4" />
-            <span>{loading ? t('schemaAudit.analyzing') : t('schemaAudit.button')}</span>
+            <span>
+              {loading ? t("schemaAudit.analyzing") : t("schemaAudit.button")}
+            </span>
           </button>
         </div>
       </div>
@@ -199,7 +199,7 @@ const SchemaAudit: React.FC<SchemaAuditProps> = ({ onStatsUpdate }) => {
                 </div>
                 <div>
                   <h3 className="text-xl font-bold text-gray-900">
-                    {t('schemaAudit.results')}
+                    {t("schemaAudit.results")}
                   </h3>
                   <p className="text-sm text-gray-600">{result.url}</p>
                 </div>
@@ -210,7 +210,9 @@ const SchemaAudit: React.FC<SchemaAuditProps> = ({ onStatsUpdate }) => {
                 className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2 text-sm font-medium transition-all"
               >
                 <Save className="w-4 h-4" />
-                <span>{saving ? t('schemaAudit.saving') : t('schemaAudit.save')}</span>
+                <span>
+                  {saving ? t("schemaAudit.saving") : t("schemaAudit.save")}
+                </span>
               </button>
             </div>
           </div>
@@ -221,13 +223,17 @@ const SchemaAudit: React.FC<SchemaAuditProps> = ({ onStatsUpdate }) => {
               <div className="text-2xl font-bold text-blue-600">
                 {result.schemas.length}
               </div>
-              <div className="text-sm text-blue-800">{t('schemaAudit.schemasFound')}</div>
+              <div className="text-sm text-blue-800">
+                {t("schemaAudit.schemasFound")}
+              </div>
             </div>
             <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-center">
               <div className="text-2xl font-bold text-red-600">
                 {result.issues.length}
               </div>
-              <div className="text-sm text-red-800">{t('schemaAudit.issuesFound')}</div>
+              <div className="text-sm text-red-800">
+                {t("schemaAudit.issuesFound")}
+              </div>
             </div>
             <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 text-center">
               <div className="text-2xl font-bold text-yellow-600">0</div>
@@ -262,7 +268,7 @@ const SchemaAudit: React.FC<SchemaAuditProps> = ({ onStatsUpdate }) => {
                     : "text-red-800"
                 }`}
               >
-                {t('schemaAudit.score')}
+                {t("schemaAudit.score")}
               </div>
             </div>
           </div>
@@ -274,7 +280,8 @@ const SchemaAudit: React.FC<SchemaAuditProps> = ({ onStatsUpdate }) => {
               <div className="bg-gray-50 px-4 py-3 border-b border-gray-200">
                 <h4 className="font-semibold text-gray-900 flex items-center">
                   <CheckCircle className="w-5 h-5 text-green-500 mr-2" />
-                  {t('schemaAudit.schemasFound')} ({result.schemas.length} items)
+                  {t("schemaAudit.schemasFound")} ({result.schemas.length}{" "}
+                  items)
                 </h4>
               </div>
               <div className="p-4">
@@ -363,9 +370,7 @@ const SchemaAudit: React.FC<SchemaAuditProps> = ({ onStatsUpdate }) => {
                           <p className="text-sm font-medium text-red-800">
                             Missing required property
                           </p>
-                          <p className="text-sm text-red-700 mt-1">
-                            {issue}
-                          </p>
+                          <p className="text-sm text-red-700 mt-1">{issue}</p>
                         </div>
                       </div>
                     ))}
@@ -380,14 +385,16 @@ const SchemaAudit: React.FC<SchemaAuditProps> = ({ onStatsUpdate }) => {
                 <div className="flex items-center justify-between">
                   <h4 className="font-semibold text-gray-900 flex items-center">
                     <Zap className="w-5 h-5 text-blue-500 mr-2" />
-                    {t('schemaAudit.suggestions')} ({result.suggestions.length})
+                    {t("schemaAudit.suggestions")} ({result.suggestions.length})
                   </h4>
                   <button
                     onClick={generateAISuggestions}
                     disabled={loading}
                     className="px-4 py-2 text-sm bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 disabled:opacity-50 transition-colors"
                   >
-                    {loading ? t('schemaAudit.generating') : t('schemaAudit.refresh')}
+                    {loading
+                      ? t("schemaAudit.generating")
+                      : t("schemaAudit.refresh")}
                   </button>
                 </div>
               </div>
@@ -421,7 +428,7 @@ const SchemaAudit: React.FC<SchemaAuditProps> = ({ onStatsUpdate }) => {
       {recentAudits.length > 0 && (
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
           <h3 className="text-lg font-semibold text-gray-900 mb-4">
-            {t('schemaAudit.recentAudits')}
+            {t("schemaAudit.recentAudits")}
           </h3>
           <div className="space-y-3">
             {recentAudits.map((audit) => (
@@ -462,7 +469,7 @@ const SchemaAudit: React.FC<SchemaAuditProps> = ({ onStatsUpdate }) => {
                     }}
                     className="text-blue-600 hover:text-blue-700 text-sm font-medium"
                   >
-                    {t('schemaAudit.view')}
+                    {t("schemaAudit.view")}
                   </button>
                 </div>
               </div>
